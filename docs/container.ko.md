@@ -31,7 +31,8 @@ docker run --rm -v /:/host:ro -v /etc/vmsctl:/etc/vmsctl:ro ghcr.io/with-develop
 마운트한 루트를 점검하면 컨테이너의 이름이 아니라 마운트된 시스템의 호스트 이름(`/host/etc/hostname`)으로 결과가
 보고됩니다.
 
-0.26.0까지의 이미지는 `ghcr.io/with-developer/hostlint`입니다. 이제 갱신되지 않고, 그 이름의 `:latest`도 0.26.0에 머뭅니다.
+0.26.0까지의 이미지는 `ghcr.io/with-developer/hostlint`로 나왔지만, 그 패키지는 2026-11-18에 삭제했습니다.
+`ghcr.io/with-developer/vmsctl`(0.27.0 이후)을 쓰세요.
 
 ## 이미지 검증
 

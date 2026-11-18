@@ -12,7 +12,7 @@ its results, tokens, signatures or the server's database changes. What you type 
 |---|---|
 | `hostlint scan ...` | `vmsctl scan ...` |
 | `/usr/local/bin/hostlint`, `/usr/bin/hostlint` | `vmsctl` (the `.deb` and `.rpm` keep a `hostlint` link for a while; `install.sh` links an old `hostlint` to the new binary; both print that the name is deprecated) |
-| `ghcr.io/with-developer/hostlint:0.26.0` | `ghcr.io/with-developer/vmsctl:0.27.0` (the old image stays, and its `:latest` stops at 0.26.0) |
+| `ghcr.io/with-developer/hostlint:0.26.0` | `ghcr.io/with-developer/vmsctl:0.27.0` (the old image was deleted on 2026-11-18: pull the new name) |
 | `uses: with-developer/hostlint@v0.26.0` | `uses: with-developer/vmsctl@v0.27.0` |
 | `go install github.com/with-developer/hostlint/cmd/hostlint@...` | `go install github.com/with-developer/vmsctl/cmd/vmsctl@v0.27.0` (`@latest` of the old path stays at v0.26.0) |
 | `HOSTLINT_TOKEN`, `HOSTLINT_PACK`, `HOSTLINT_WEBHOOK_URL` | `VMSCTL_TOKEN`, `VMSCTL_PACK`, `VMSCTL_WEBHOOK_URL` |

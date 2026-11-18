@@ -92,3 +92,10 @@ from `/hostlint/` to `/vmsctl/`; GitHub Pages does not redirect it.
   migration guide and the release notes say so. The container workflow refuses a manual build of a tag older than
   v0.27.0, whose archives and signing identity carry the old name.
 - The signing identity is the repository's name, so the repository is renamed before v0.27.0 is tagged.
+
+## Amendment (2026-11-18, the owner's decision)
+
+The container package `ghcr.io/with-developer/hostlint` (images up to 0.26.0) was deleted: nobody used it, and it showed as a second
+package of the repository. Pulling the old image name now fails; `ghcr.io/with-developer/vmsctl` is the only image. The other transition
+shims of this ADR (the `hostlint` link of the packages, the old environment variables and configuration file names) are unchanged.
+

@@ -29,8 +29,8 @@ docker run --rm -v /:/host:ro -v /etc/vmsctl:/etc/vmsctl:ro ghcr.io/with-develop
 
 A scan of a mounted root reports the host name the mounted system has (`/host/etc/hostname`), not the container's.
 
-Images up to 0.26.0 are `ghcr.io/with-developer/hostlint`: they are not updated any more, and `:latest` of that name stays
-at 0.26.0.
+Images up to 0.26.0 were published as `ghcr.io/with-developer/hostlint`; that package was deleted on 2026-11-18. Use
+`ghcr.io/with-developer/vmsctl` (0.27.0 and later).
 
 ## Verifying the image
 
