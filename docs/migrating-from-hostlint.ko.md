@@ -1,4 +1,4 @@
-<!-- translated from docs/migrating-from-hostlint.md @ bd440c1 -->
+<!-- translated from docs/migrating-from-hostlint.md @ 02baf8c -->
 # hostlint에서 vmsctl로 옮기기
 
 hostlint는 v0.27.0에서 vmsctl로 이름을 바꿨습니다([ADR 0017](adr/0017-rename-to-vmsctl.md)). hostlint는 관계없는 호스팅 회사의
@@ -13,7 +13,7 @@ hostlint는 v0.27.0에서 vmsctl로 이름을 바꿨습니다([ADR 0017](adr/001
 |---|---|
 | `hostlint scan ...` | `vmsctl scan ...` |
 | `/usr/local/bin/hostlint`, `/usr/bin/hostlint` | `vmsctl`. `.deb`·`.rpm` 패키지는 한동안 `hostlint` 링크를 함께 두고, `install.sh`는 예전 `hostlint`를 새 바이너리를 가리키는 링크로 바꿉니다. 둘 다 이 이름은 더 이상 쓰지 않는다(deprecated)는 안내를 출력합니다 |
-| `ghcr.io/with-developer/hostlint:0.26.0` | `ghcr.io/with-developer/vmsctl:0.27.0` (예전 이미지는 남아 있고, 그 이름의 `:latest`는 0.26.0에서 멈춥니다) |
+| `ghcr.io/with-developer/hostlint:0.26.0` | `ghcr.io/with-developer/vmsctl:0.27.0` (예전 이미지는 2026-11-18에 삭제했으니 새 이름으로 받으세요) |
 | `uses: with-developer/hostlint@v0.26.0` | `uses: with-developer/vmsctl@v0.27.0` |
 | `go install github.com/with-developer/hostlint/cmd/hostlint@...` | `go install github.com/with-developer/vmsctl/cmd/vmsctl@v0.27.0` (예전 경로의 `@latest`는 v0.26.0에 머뭅니다) |
 | `HOSTLINT_TOKEN`, `HOSTLINT_PACK`, `HOSTLINT_WEBHOOK_URL` | `VMSCTL_TOKEN`, `VMSCTL_PACK`, `VMSCTL_WEBHOOK_URL` |
