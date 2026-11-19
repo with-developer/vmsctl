@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -946,5 +947,51 @@ func TestMatrixCSV(t *testing.T) {
 	}
 	if code, _ := f.get(t, "", "/api/v1/matrix?format=csv"); code != http.StatusUnauthorized {
 		t.Errorf("csv without a token: %d", code)
+	}
+}
+
+// The overview says what fixing a failing control would add to the pass rate, and lists a control that a host fixed since its
+// previous scan next to the regressions.
+func TestOverviewGainAndFixes(t *testing.T) {
+	f := newAPIFixture(t)
+	var o Overview
+	f.json(t, "/api/v1/overview", &o)
+	decided := o.Counts["PASS"] + o.Counts["FAIL"] + o.Counts["ERROR"] + o.Counts["MANUAL"]
+	for _, c := range o.TopFailing {
+		want := math.Round(1000*float64(c.Hosts)/float64(decided)) / 10
+		if c.Gain != want || c.Gain <= 0 {
+			t.Errorf("%s: gain %v, want %v", c.ID, c.Gain, want)
+		}
+	}
+	if len(o.RecentFixes) != 0 {
+		t.Errorf("fixes before any = %+v", o.RecentFixes)
+	}
+	// web-01 fixes U-01 in a new scan.
+	var doc map[string]any
+	if err := json.Unmarshal(fixture(t, "web-01.json"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["scan"].(map[string]any)["id"] = "web-01-fixed"
+	for _, c := range doc["controls"].([]any) {
+		if c.(map[string]any)["id"] == "U-01" {
+			c.(map[string]any)["status"] = "PASS"
+		}
+	}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.clock = f.clock.Add(time.Hour)
+	if code, out := post(t, f.srv, token(t, f.store, ScopeIngest, ""), raw); code != http.StatusCreated {
+		t.Fatalf("the fixed scan was not stored: %d %v", code, out)
+	}
+	f.json(t, "/api/v1/overview", &o)
+	if len(o.RecentFixes) != 1 || o.RecentFixes[0].Host != "web-01" || o.RecentFixes[0].ControlID != "U-01" || o.RecentFixes[0].Status != "PASS" {
+		t.Errorf("fixes = %+v", o.RecentFixes)
+	}
+	for _, r := range o.RecentRegression {
+		if r.Host == "web-01" && r.ControlID == "U-01" {
+			t.Errorf("a fixed control is still a regression: %+v", r)
+		}
 	}
 }

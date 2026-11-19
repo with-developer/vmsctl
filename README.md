@@ -69,7 +69,8 @@ vmsctl server demo      # a made-up fleet of twelve hosts, nothing scanned, noth
 ```
 
 - **Pass rate over time** for the whole fleet (7, 30 or 90 days), and a trend line on every host.
-- **What fails most, and what just got worse:** the controls that fail on most hosts, and the regressions of the last scans.
+- **What to fix first:** the failing controls ranked by severity and the hosts that fail them, each with what fixing it adds to the
+  pass rate; and what just changed (controls that got worse or were fixed, hosts that stopped reporting).
 - **The evidence behind every result,** the file and the line, with **how to fix it** next to each failure.
 - **A matrix of every control on every host,** one click from a cell to the host.
 - **One profile at a time** (KISA, essentials, your own policy pack), with host OS and labels in the list.

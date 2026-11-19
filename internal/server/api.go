@@ -163,6 +163,9 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	for i := range o.RecentRegression {
 		o.RecentRegression[i].TitleKo = s.titleKo(o.RecentRegression[i].Profile, o.RecentRegression[i].ControlID)
 	}
+	for i := range o.RecentFixes {
+		o.RecentFixes[i].TitleKo = s.titleKo(o.RecentFixes[i].Profile, o.RecentFixes[i].ControlID)
+	}
 	writeJSON(w, http.StatusOK, o)
 }
 

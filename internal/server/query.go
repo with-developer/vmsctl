@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -486,6 +487,9 @@ type FailingControl struct {
 	TitleKo  string `json:"titleKo,omitempty"`
 	Severity string `json:"severity"`
 	Hosts    int    `json:"hosts"`
+	// Gain is what fixing the control on every host that fails it would add to the pass rate, in percentage points: each host
+	// moves one result from FAIL to PASS, over the same total.
+	Gain float64 `json:"gain"`
 }
 
 // Overview is the numbers of the dashboard's first page.
@@ -500,7 +504,10 @@ type Overview struct {
 	Score            *float64           `json:"score"`
 	TopFailing       []FailingControl   `json:"topFailing"`
 	RecentRegression []RegressedControl `json:"recentRegressions"`
-	StaleAfterDays   int                `json:"staleAfterDays"`
+	// RecentFixes are controls that were FAIL or ERROR in a host's previous scan and pass now (or are not applicable),
+	// in the same time as the regressions.
+	RecentFixes    []RegressedControl `json:"recentFixes"`
+	StaleAfterDays int                `json:"staleAfterDays"`
 }
 
 // Overview computes the first page of the dashboard. A host is stale when it has not reported
@@ -513,7 +520,7 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 	if err != nil {
 		return nil, err
 	}
-	o := &Overview{Counts: Counts{}, TopFailing: []FailingControl{}, RecentRegression: []RegressedControl{}, StaleAfterDays: int(staleAfter.Hours() / 24), Profile: profile}
+	o := &Overview{Counts: Counts{}, TopFailing: []FailingControl{}, RecentRegression: []RegressedControl{}, RecentFixes: []RegressedControl{}, StaleAfterDays: int(staleAfter.Hours() / 24), Profile: profile}
 	for _, h := range hosts {
 		if h.Stale {
 			o.HostsStale++ // that a host is silent does not depend on the profile it scanned with
@@ -536,7 +543,7 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 		SELECT c.profile, c.control_id, MAX(c.title), MAX(c.severity), COUNT(*)
 		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row
 		WHERE c.status = 'FAIL' AND (? = '' OR c.profile = ?) GROUP BY c.profile, c.control_id
-		ORDER BY COUNT(*) DESC, c.control_id LIMIT 10`, profile, profile)
+		ORDER BY COUNT(*) * (CASE MAX(c.severity) WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END) DESC, COUNT(*) DESC, c.control_id LIMIT 10`, profile, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -545,6 +552,9 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 		if err := rs.Scan(&f.Profile, &f.ID, &f.Title, &f.Severity, &f.Hosts); err != nil {
 			_ = rs.Close()
 			return nil, err
+		}
+		if decided := o.Counts["PASS"] + o.Counts["FAIL"] + o.Counts["ERROR"] + o.Counts["MANUAL"]; decided > 0 {
+			f.Gain = math.Round(1000*float64(f.Hosts)/float64(decided)) / 10 // one decimal
 		}
 		o.TopFailing = append(o.TopFailing, f)
 	}
@@ -578,7 +588,46 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 		}
 		o.RecentRegression = append(o.RecentRegression, r)
 	}
-	return o, rr.Err()
+	if err := rr.Err(); err != nil {
+		return nil, err
+	}
+	fixes, err := s.recentFixes(ctx, cutoff, profile)
+	if err != nil {
+		return nil, err
+	}
+	o.RecentFixes = fixes
+	return o, nil
+}
+
+// recentFixes are the controls that were FAIL or ERROR in a host's previous scan and PASS or NOT_APPLICABLE in its latest one,
+// received since cutoff: the other side of the regressions. A waived control is not a fix.
+func (s *Store) recentFixes(ctx context.Context, cutoff, profile string) ([]RegressedControl, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		WITH ranked AS (
+		  SELECT s.id AS id, s.host_row AS host_row, s.received_at AS received_at, ROW_NUMBER() OVER (PARTITION BY s.host_row ORDER BY s.received_at DESC, s.id DESC) AS rn
+		  FROM scans s JOIN hosts k ON k.id = s.host_row AND k.kind = 'host'
+		)
+		SELECT h.id, h.name, c.profile, c.control_id, c.title, c.severity, c.status, l.received_at
+		FROM ranked l
+		JOIN ranked pv ON pv.host_row = l.host_row AND pv.rn = 2
+		JOIN hosts h ON h.id = l.host_row
+		JOIN scan_controls c ON c.scan_row = l.id AND c.status IN ('PASS', 'NOT_APPLICABLE')
+		JOIN scan_controls p ON p.scan_row = pv.id AND p.profile = c.profile AND p.control_id = c.control_id AND p.status IN ('FAIL', 'ERROR')
+		WHERE l.rn = 1 AND l.received_at >= ? AND (? = '' OR c.profile = ?)
+		ORDER BY l.received_at DESC, h.name, c.control_id LIMIT 20`, cutoff, profile, profile)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RegressedControl{}
+	for rows.Next() {
+		var r RegressedControl
+		if err := rows.Scan(&r.HostID, &r.Host, &r.Profile, &r.ControlID, &r.Title, &r.Severity, &r.Status, &r.ReceivedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // MatrixControl is a column of the matrix.
