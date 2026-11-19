@@ -1,4 +1,4 @@
-<!-- translated from README.md @ 1273153 -->
+<!-- translated from README.md @ bb9fecf -->
 # vmsctl
 
 [![CI](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml/badge.svg)](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml)
@@ -70,7 +70,8 @@ vmsctl server demo      # 가상의 호스트 12대로 둘러보기. 실제로 �
 ```
 
 - **통과율이 시간에 따라 어떻게 달라졌는지** 7일·30일·90일 차트로 보고, 호스트마다 최근 추이도 봅니다.
-- **가장 많은 호스트에서 실패하는 점검 항목과 방금 나빠진 점검 항목**을 바로 확인합니다.
+- **먼저 고칠 것:** 실패한 점검 항목을 심각도와 실패한 호스트 수로 정렬하고, 고치면 통과율이 얼마나 오르는지 보여 줍니다.
+  최근 악화되거나 해결된 점검 항목과 보고가 끊긴 호스트도 한 목록으로 봅니다.
 - **모든 결과에 근거**(파일과 줄)가 붙고, 실패한 항목 옆에 **조치 방법**이 나옵니다.
 - **모든 호스트 × 모든 점검 항목 매트릭스.** 칸을 누르면 그 호스트로 이동합니다.
 - 프로파일(KISA, essentials, 직접 만든 정책 팩)을 **한 번에 하나씩** 골라 봅니다. 목록에는 호스트의 OS와 라벨이 보입니다.

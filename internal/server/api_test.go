@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -946,5 +947,98 @@ func TestMatrixCSV(t *testing.T) {
 	}
 	if code, _ := f.get(t, "", "/api/v1/matrix?format=csv"); code != http.StatusUnauthorized {
 		t.Errorf("csv without a token: %d", code)
+	}
+}
+
+// The overview says what fixing a failing control would add to the pass rate, and lists a control that a host fixed since its
+// previous scan next to the regressions.
+// rescan posts a fixture again as a new scan an hour later, with its controls changed by edit.
+func (f *apiFixture) rescan(t *testing.T, name, id string, edit func(controls []any) []any) {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(fixture(t, name), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["scan"].(map[string]any)["id"] = id
+	doc["controls"] = edit(doc["controls"].([]any))
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.clock = f.clock.Add(time.Hour)
+	if code, out := post(t, f.srv, token(t, f.store, ScopeIngest, ""), raw); code != http.StatusCreated {
+		t.Fatalf("%s: the scan was not stored: %d %v", id, code, out)
+	}
+}
+
+func setStatus(controls []any, status map[string]string) []any {
+	for _, c := range controls {
+		if st, ok := status[c.(map[string]any)["id"].(string)]; ok {
+			c.(map[string]any)["status"] = st
+		}
+	}
+	return controls
+}
+
+func TestOverviewGainAndFixes(t *testing.T) {
+	f := newAPIFixture(t)
+	var o Overview
+	f.json(t, "/api/v1/overview", &o)
+	decided := o.Counts["PASS"] + o.Counts["FAIL"] + o.Counts["ERROR"] + o.Counts["MANUAL"]
+	for _, c := range o.TopFailing {
+		want := 100 * float64(c.Hosts) / float64(decided)
+		if math.Abs(c.Gain-want) > 0.001 || c.Gain <= 0 {
+			t.Errorf("%s: gain %v, want %v", c.ID, c.Gain, want)
+		}
+	}
+	if len(o.RecentFixes) != 0 {
+		t.Errorf("fixes before any = %+v", o.RecentFixes)
+	}
+	// web-01 fixes U-01 (FAIL), and U-04 (ERROR) passes again: a check that ran, not a fix.
+	f.rescan(t, "web-01.json", "web-01-fixed", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS", "U-04": "PASS"}) })
+	f.json(t, "/api/v1/overview", &o)
+	if len(o.RecentFixes) != 1 || o.RecentFixes[0].Host != "web-01" || o.RecentFixes[0].ControlID != "U-01" || o.RecentFixes[0].Status != "PASS" {
+		t.Errorf("fixes = %+v", o.RecentFixes)
+	}
+	for _, r := range o.RecentRegression {
+		if r.Host == "web-01" && r.ControlID == "U-01" {
+			t.Errorf("a fixed control is still a regression: %+v", r)
+		}
+	}
+}
+
+// The fix-first order is severity (high 3, medium 2, low 1) times the failing hosts, and a control that hosts report with
+// different severities counts with the highest one.
+func TestOverviewFixFirstOrder(t *testing.T) {
+	f := newAPIFixture(t)
+	add := func(sev map[string]string) func([]any) []any {
+		return func(cs []any) []any {
+			for _, id := range []string{"X-1", "X-2", "X-3"} {
+				if sev[id] != "" {
+					cs = append(cs, map[string]any{"profile": "kisa-2026", "id": id, "title": id, "severity": sev[id], "status": "FAIL", "checks": []string{}})
+				}
+			}
+			return cs
+		}
+	}
+	f.rescan(t, "web-01.json", "web-01-more", add(map[string]string{"X-1": "low", "X-2": "medium", "X-3": "high"}))
+	f.rescan(t, "db-01.json", "db-01-more", add(map[string]string{"X-1": "low", "X-3": "medium"}))
+	var o Overview
+	f.json(t, "/api/v1/overview", &o)
+	at := map[string]int{}
+	for i, c := range o.TopFailing {
+		at[c.ID] = i
+	}
+	for _, id := range []string{"U-08", "X-1", "X-2"} {
+		if _, ok := at[id]; !ok {
+			t.Fatalf("%s is not in %+v", id, o.TopFailing)
+		}
+	}
+	// X-3: 2 hosts × high = 6; U-08: 1 host × high = 3; X-1: 2 hosts × low = 2; X-2: 1 host × medium = 2, fewer hosts.
+	if len(o.TopFailing) == 0 || o.TopFailing[0].ID != "X-3" || o.TopFailing[0].Severity != "high" {
+		t.Fatalf("first = %+v", o.TopFailing)
+	}
+	if at["U-08"] >= at["X-1"] || at["X-1"] >= at["X-2"] {
+		t.Errorf("order = %+v", o.TopFailing)
 	}
 }
