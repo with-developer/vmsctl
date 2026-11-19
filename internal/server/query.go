@@ -504,7 +504,7 @@ type Overview struct {
 	Score            *float64           `json:"score"`
 	TopFailing       []FailingControl   `json:"topFailing"`
 	RecentRegression []RegressedControl `json:"recentRegressions"`
-	// RecentFixes are controls that were FAIL or ERROR in a host's previous scan and pass now (or are not applicable),
+	// RecentFixes are controls that were FAIL in a host's previous scan and pass now (or are not applicable),
 	// in the same time as the regressions.
 	RecentFixes    []RegressedControl `json:"recentFixes"`
 	StaleAfterDays int                `json:"staleAfterDays"`
@@ -540,10 +540,13 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 	o.Score = o.Counts.Score()
 
 	rs, err := s.db.QueryContext(ctx, `
-		SELECT c.profile, c.control_id, MAX(c.title), MAX(c.severity), COUNT(*)
-		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row
-		WHERE c.status = 'FAIL' AND (? = '' OR c.profile = ?) GROUP BY c.profile, c.control_id
-		ORDER BY COUNT(*) * (CASE MAX(c.severity) WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END) DESC, COUNT(*) DESC, c.control_id LIMIT 10`, profile, profile)
+		SELECT profile, control_id, title, CASE w WHEN 3 THEN 'high' WHEN 2 THEN 'medium' ELSE sev END, n FROM (
+		  SELECT c.profile AS profile, c.control_id AS control_id, MAX(c.title) AS title, MAX(c.severity) AS sev, COUNT(*) AS n,
+		    MAX(CASE c.severity WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END) AS w
+		  FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row
+		  WHERE c.status = 'FAIL' AND (? = '' OR c.profile = ?) GROUP BY c.profile, c.control_id
+		)
+		ORDER BY n * w DESC, n DESC, control_id LIMIT 10`, profile, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +557,7 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 			return nil, err
 		}
 		if decided := o.Counts["PASS"] + o.Counts["FAIL"] + o.Counts["ERROR"] + o.Counts["MANUAL"]; decided > 0 {
-			f.Gain = math.Round(1000*float64(f.Hosts)/float64(decided)) / 10 // one decimal
+			f.Gain = math.Round(1e5*float64(f.Hosts)/float64(decided)) / 1e3 // three decimals: the dashboard rounds for display
 		}
 		o.TopFailing = append(o.TopFailing, f)
 	}
@@ -564,70 +567,54 @@ func (s *Store) Overview(ctx context.Context, staleAfter time.Duration, profile 
 	_ = rs.Close()
 
 	cutoff := s.now().UTC().Add(-staleAfter).Format(stampLayout)
-	rr, err := s.db.QueryContext(ctx, `
-		WITH ranked AS (
-		  SELECT s.id AS id, s.host_row AS host_row, s.received_at AS received_at, ROW_NUMBER() OVER (PARTITION BY s.host_row ORDER BY s.received_at DESC, s.id DESC) AS rn
-		  FROM scans s JOIN hosts k ON k.id = s.host_row AND k.kind = 'host'
-		)
-		SELECT h.id, h.name, c.profile, c.control_id, c.title, c.severity, c.status, l.received_at
-		FROM ranked l
-		JOIN ranked pv ON pv.host_row = l.host_row AND pv.rn = 2
-		JOIN hosts h ON h.id = l.host_row
-		JOIN scan_controls c ON c.scan_row = l.id AND c.status IN ('FAIL', 'ERROR')
-		LEFT JOIN scan_controls p ON p.scan_row = pv.id AND p.profile = c.profile AND p.control_id = c.control_id
-		WHERE l.rn = 1 AND (p.status IS NULL OR p.status NOT IN ('FAIL', 'ERROR')) AND l.received_at >= ? AND (? = '' OR c.profile = ?)
-		ORDER BY l.received_at DESC, h.name, c.control_id LIMIT 20`, cutoff, profile, profile)
-	if err != nil {
+	if o.RecentRegression, o.RecentFixes, err = s.recentChanges(ctx, cutoff, profile); err != nil {
 		return nil, err
 	}
-	defer rr.Close()
-	for rr.Next() {
-		var r RegressedControl
-		if err := rr.Scan(&r.HostID, &r.Host, &r.Profile, &r.ControlID, &r.Title, &r.Severity, &r.Status, &r.ReceivedAt); err != nil {
-			return nil, err
-		}
-		o.RecentRegression = append(o.RecentRegression, r)
-	}
-	if err := rr.Err(); err != nil {
-		return nil, err
-	}
-	fixes, err := s.recentFixes(ctx, cutoff, profile)
-	if err != nil {
-		return nil, err
-	}
-	o.RecentFixes = fixes
 	return o, nil
 }
 
-// recentFixes are the controls that were FAIL or ERROR in a host's previous scan and PASS or NOT_APPLICABLE in its latest one,
-// received since cutoff: the other side of the regressions. A waived control is not a fix.
-func (s *Store) recentFixes(ctx context.Context, cutoff, profile string) ([]RegressedControl, error) {
+// recentChanges compares each host's latest scan, received since cutoff, with its previous one. A regression is a control that is
+// FAIL or ERROR now and was not before; a fix is a control that was FAIL and is PASS or NOT_APPLICABLE now (ERROR to PASS is a
+// check that ran again, not a fix, and a waived control is not a fix). At most 20 of each, newest first.
+func (s *Store) recentChanges(ctx context.Context, cutoff, profile string) (regressions, fixes []RegressedControl, err error) {
 	rows, err := s.db.QueryContext(ctx, `
 		WITH ranked AS (
 		  SELECT s.id AS id, s.host_row AS host_row, s.received_at AS received_at, ROW_NUMBER() OVER (PARTITION BY s.host_row ORDER BY s.received_at DESC, s.id DESC) AS rn
 		  FROM scans s JOIN hosts k ON k.id = s.host_row AND k.kind = 'host'
+		), changed AS (
+		  SELECT h.id AS host_id, h.name AS host, c.profile AS profile, c.control_id AS control_id, c.title AS title, c.severity AS severity,
+		    c.status AS status, l.received_at AS received_at, c.status IN ('FAIL', 'ERROR') AS regressed
+		  FROM ranked l
+		  JOIN ranked pv ON pv.host_row = l.host_row AND pv.rn = 2
+		  JOIN hosts h ON h.id = l.host_row
+		  JOIN scan_controls c ON c.scan_row = l.id
+		  LEFT JOIN scan_controls p ON p.scan_row = pv.id AND p.profile = c.profile AND p.control_id = c.control_id
+		  WHERE l.rn = 1 AND l.received_at >= ? AND (? = '' OR c.profile = ?) AND (
+		    (c.status IN ('FAIL', 'ERROR') AND (p.status IS NULL OR p.status NOT IN ('FAIL', 'ERROR')))
+		    OR (c.status IN ('PASS', 'NOT_APPLICABLE') AND p.status = 'FAIL'))
+		), numbered AS (
+		  SELECT *, ROW_NUMBER() OVER (PARTITION BY regressed ORDER BY received_at DESC, host, control_id) AS k FROM changed
 		)
-		SELECT h.id, h.name, c.profile, c.control_id, c.title, c.severity, c.status, l.received_at
-		FROM ranked l
-		JOIN ranked pv ON pv.host_row = l.host_row AND pv.rn = 2
-		JOIN hosts h ON h.id = l.host_row
-		JOIN scan_controls c ON c.scan_row = l.id AND c.status IN ('PASS', 'NOT_APPLICABLE')
-		JOIN scan_controls p ON p.scan_row = pv.id AND p.profile = c.profile AND p.control_id = c.control_id AND p.status IN ('FAIL', 'ERROR')
-		WHERE l.rn = 1 AND l.received_at >= ? AND (? = '' OR c.profile = ?)
-		ORDER BY l.received_at DESC, h.name, c.control_id LIMIT 20`, cutoff, profile, profile)
+		SELECT host_id, host, profile, control_id, title, severity, status, received_at, regressed
+		FROM numbered WHERE k <= 20 ORDER BY received_at DESC, host, control_id`, cutoff, profile, profile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
-	out := []RegressedControl{}
+	regressions, fixes = []RegressedControl{}, []RegressedControl{}
 	for rows.Next() {
 		var r RegressedControl
-		if err := rows.Scan(&r.HostID, &r.Host, &r.Profile, &r.ControlID, &r.Title, &r.Severity, &r.Status, &r.ReceivedAt); err != nil {
-			return nil, err
+		var regressed bool
+		if err := rows.Scan(&r.HostID, &r.Host, &r.Profile, &r.ControlID, &r.Title, &r.Severity, &r.Status, &r.ReceivedAt, &regressed); err != nil {
+			return nil, nil, err
 		}
-		out = append(out, r)
+		if regressed {
+			regressions = append(regressions, r)
+		} else {
+			fixes = append(fixes, r)
+		}
 	}
-	return out, rows.Err()
+	return regressions, fixes, rows.Err()
 }
 
 // MatrixControl is a column of the matrix.

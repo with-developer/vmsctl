@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
 import { ago, ctitle, percent } from "../lib/format";
-import { Await, Donut, Empty, Gauge, PageHeader, ScorePill, Severity, StatusBar, Stat } from "../components/ui";
+import { Await, Donut, Empty, Gauge, PageHeader, ScorePill, Severity, StatusBadge, StatusBar, Stat } from "../components/ui";
 import { IconAlert, IconClock, IconServer } from "../components/icons";
 import { TrendChart } from "../components/charts";
 import { GettingStarted } from "../components/start";
@@ -19,6 +19,8 @@ export function OverviewPage() {
   const { t } = useI18n();
   const state = useAsync(() => api.overview(STALE_DAYS), []);
   const hosts = useAsync(() => api.hosts({ sort: "score", limit: 60, staleDays: STALE_DAYS }), []);
+  // The hosts that went silent most recently, wherever their score puts them in the tiles.
+  const silent = useAsync(() => api.hosts({ status: "stale", sort: "recent", limit: 2, staleDays: STALE_DAYS }), []);
   return (
     <>
       <PageHeader title={t("overview.title")} subtitle={t("overview.subtitle")} />
@@ -45,7 +47,7 @@ export function OverviewPage() {
 
               <div className="two">
                 <FixFirst o={o} />
-                <Changes o={o} hosts={hosts.data?.hosts ?? []} />
+                <Changes o={o} silent={silent.data?.hosts ?? []} />
               </div>
 
               <TrendCard />
@@ -71,6 +73,7 @@ function TopThree({ o }: { o: Overview }) {
   const gains = o.topFailing.slice(0, TOP).map((c) => c.gain ?? 0);
   if (o.score === null || gains.length < TOP || gains.some((g) => g <= 0)) return null;
   const after = Math.min(1, o.score + gains.reduce((a, b) => a + b, 0) / 100);
+  if (percent(after) === percent(o.score)) return null; // a lift too small to show
   return <p className="topthree">{t("overview.topThree", { score: percent(after) })}</p>;
 }
 
@@ -96,7 +99,7 @@ function FixFirst({ o }: { o: Overview }) {
                   <Severity value={c.severity} /> · {t("overview.onHosts", c.hosts)}
                 </div>
               </div>
-              {(c.gain ?? 0) > 0 && <span className="gain">{t("overview.gain", { n: (c.gain ?? 0).toFixed(1) })}</span>}
+              {(c.gain ?? 0) > 0 && <span className="gain">{t("overview.gain", { n: points(c.gain ?? 0) })}</span>}
               <a className="button compact" href={`#/controls/${c.profile}/${c.id}`}>
                 {t("overview.howToFix")}
               </a>
@@ -108,18 +111,22 @@ function FixFirst({ o }: { o: Overview }) {
   );
 }
 
-type Change = { key: string; kind: "regressed" | "fixed" | "stale"; at: string; hostId: number; host: string; what: string };
+/** Percentage points for display: one decimal, or two for a small gain so that it does not read as zero. */
+function points(g: number): string {
+  return g >= 0.1 ? g.toFixed(1) : g >= 0.01 ? g.toFixed(2) : "<0.01";
+}
+
+type Change = { key: string; kind: "regressed" | "fixed" | "stale"; at: string; hostId: number; host: string; what: string; status?: RegressedControl["status"] };
 
 /** What changed lately, newest first: controls that got worse or were fixed, and hosts that stopped reporting. */
-function Changes({ o, hosts }: { o: Overview; hosts: HostSummary[] }) {
+function Changes({ o, silent: stale }: { o: Overview; silent: HostSummary[] }) {
   const { t, lang } = useI18n();
   const now = useNow();
   const control = (kind: "regressed" | "fixed") => (r: RegressedControl): Change => ({
     key: `${kind}/${r.hostId}/${r.profile}/${r.id}`, kind, at: r.receivedAt, hostId: r.hostId, host: r.host, what: `${r.id} ${ctitle(r, lang)}`,
+    status: kind === "regressed" && r.status === "ERROR" ? r.status : undefined, // worse because the check could not run, not because it failed
   });
-  const silent = hosts
-    .filter((h) => h.stale)
-    .map((h): Change => ({
+  const silent = stale.map((h): Change => ({
       key: `stale/${h.id}`, kind: "stale", at: h.lastScanAt, hostId: h.id, host: h.name,
       what: t("change.staleWhat", Math.max(1, Math.floor((now - Date.parse(h.lastScanAt)) / 86400000))),
     }));
@@ -142,9 +149,10 @@ function Changes({ o, hosts }: { o: Overview; hosts: HostSummary[] }) {
             <li key={c.key}>
               <span className={`kind kind-${c.kind}`}>{t(`change.${c.kind}`)}</span>
               <span className="changes-what">
-                <a href={`#/hosts/${c.hostId}`}>{c.host}</a> · {c.what}
+                <a href={`#/hosts/${c.hostId}`}>{c.host}</a> · {c.what} {c.status && <StatusBadge status={c.status} />}
               </span>
-              <span className="muted small">{ago(c.at, now, t)}</span>
+              {/* a silent host says how long already */}
+              <span className="muted small">{c.kind === "stale" ? "" : ago(c.at, now, t)}</span>
             </li>
           ))}
         </ul>
