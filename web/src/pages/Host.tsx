@@ -1,87 +1,176 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "../lib/api";
-import { useAsync, useNow } from "../lib/hooks";
+import { type Async, useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
 import { ago, compareControls, ctitle, localized } from "../lib/format";
 import { lastListAddress } from "../lib/listAddress";
 import { Avatar, Await, Empty, Gauge, Inline, ScorePill, Severity, SignedBadge, StatusBadge, StatusBar } from "../components/ui";
 import { TrendChart } from "../components/charts";
 import { IconChevron, IconDownload, IconSearch } from "../components/icons";
-import { STATUSES, type ControlChange, type ControlRow, type Diff, type ScanDoc, type ScanRow, type Status } from "../lib/types";
+import { STATUSES, type ControlChange, type ControlRow, type Diff, type HostDetail, type ScanDoc, type ScanRow, type Status } from "../lib/types";
 import { STALE_DAYS } from "./Overview";
 
 export function HostPage({ id }: { id: number }) {
   const { t } = useI18n();
-  const now = useNow();
-  const [tab, setTab] = useState<"controls" | "history">("controls");
   const state = useAsync(() => api.host(id, STALE_DAYS), [id], false);
   return (
-    <>
-      <Await state={state} skeleton={<p className="crumb"><a href={lastListAddress("hosts")}>{t("host.back")}</a></p>}>
-        {(h) => (
-          <div className="stack">
-            <p className="crumb">
-              {h.kind === "image" ? <a href={lastListAddress("images")}>{t("host.backImages")}</a> : <a href={lastListAddress("hosts")}>{t("host.back")}</a>}
-            </p>
-            <header className="card hosthead">
-              <Avatar name={h.name} size={52} />
-              <div className="hosthead-main">
-                <h1>{h.name}</h1>
-                <p className="muted small">
-                  {h.hostId && (
-                    <>
-                      {t("host.hostId")}: <span className="mono">{h.hostId}</span> ·{" "}
-                    </>
-                  )}
-                  {h.kind === "image" && (
-                    <>
-                      <span className="badge s-WAIVED">{t("host.image")}</span>{" "}
-                      {h.imageRef && <span className="mono">{h.imageRef}</span>}{" "}
-                      {h.imageDigest && (
-                        <span className="mono" title={h.imageDigest}>
-                          {t("host.imageId")} {h.imageDigest.slice(7, 19)}
-                        </span>
-                      )}{" "}
-                      ·{" "}
-                    </>
-                  )}
-                  {t("host.lastScan")}: {ago(h.lastScanAt, now, t)} {h.stale && <span className="badge s-MANUAL">{t("stale")}</span>} {h.signed && <SignedBadge fingerprint={h.keyFingerprint} />}
-                </p>
-                <StatusBar counts={h.counts} legend />
-              </div>
-              <Gauge score={h.score} label={t("host.passRate")} />
-            </header>
-            {h.kind !== "image" && <ScanNow hostId={id} onDone={state.reload} />}
-            {(h.packs?.length ?? 0) > 0 && (
-              <p className="muted small packs">
-                {t("host.packs")}:{" "}
-                {h.packs?.map((p) => (
-                  <span key={`${p.name}/${p.version}/${p.digest}`} className="chip-label" title={p.digest}>
-                    {p.name} {p.version} <span className="mono">{(p.digest ?? "").slice(0, 19)}</span>
-                  </span>
-                ))}
-              </p>
-            )}
-            {h.otherProfile ? <p className="muted small">{t("profile.hostOther", { profiles: (h.profiles ?? []).join(", ") })}</p> : null}
-
-            <div className="tabs" role="tablist">
-              <button role="tab" aria-selected={tab === "controls"} className={tab === "controls" ? "on" : ""} onClick={() => setTab("controls")}>
-                {t("host.tabControls")} <span className="count">{h.controls.length}</span>
-              </button>
-              <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>
-                {t("host.tabHistory")} <span className="count">{h.scans.length}</span>
-              </button>
-            </div>
-
-            {tab === "controls" ? <Controls controls={h.controls} scanId={h.latestScan} /> : <History scans={h.scans} />}
-          </div>
-        )}
-      </Await>
-    </>
+    <Await state={state} skeleton={<p className="crumb"><a href={lastListAddress("hosts")}>{t("host.back")}</a></p>}>
+      {(h) => <HostBody h={h} id={id} reload={state.reload} />}
+    </Await>
   );
 }
 
-function Controls({ controls, scanId }: { controls: ControlRow[]; scanId: number }) {
+/** How many changes the "since the previous scan" card lists before it points at the comparison. */
+const SINCE_MAX = 8;
+
+function HostBody({ h, id, reload }: { h: HostDetail; id: number; reload: () => void }) {
+  const { t } = useI18n();
+  const now = useNow();
+  const [tab, setTab] = useState<"controls" | "history">("controls");
+  // A control to open in the list (n tells a second click on the same control from the first), and a pair of scans to compare.
+  const [focus, setFocus] = useState<{ key: string; n: number } | null>(null);
+  const [compare, setCompare] = useState<[number, number] | null>(null);
+  const [latest, previous] = h.scans;
+  const since = useAsync(() => (previous ? api.diff(previous.id, latest.id) : Promise.resolve(null as Diff | null)), [previous?.id, latest?.id], false);
+  // The comparison covers the whole scans; the page shows the controls of the chosen profile.
+  const sinceHere = useMemo(() => {
+    const keys = new Set(h.controls.map((c) => `${c.profile}/${c.id}`));
+    const d = since.data;
+    return d && { ...d, regressed: d.regressed.filter((c) => keys.has(`${c.profile}/${c.id}`)), fixed: d.fixed.filter((c) => keys.has(`${c.profile}/${c.id}`)) };
+  }, [h.controls, since.data]);
+  const worse = useMemo(() => new Set((sinceHere?.regressed ?? []).map((c) => `${c.profile}/${c.id}`)), [sinceHere]);
+  const show = (next: "controls" | "history") => {
+    setCompare(null);
+    setTab(next);
+  };
+  return (
+    <div className="stack">
+      <p className="crumb">
+        {h.kind === "image" ? <a href={lastListAddress("images")}>{t("host.backImages")}</a> : <a href={lastListAddress("hosts")}>{t("host.back")}</a>}
+      </p>
+      <header className="card hosthead">
+        <Avatar name={h.name} size={52} />
+        <div className="hosthead-main">
+          <h1>{h.name}</h1>
+          <p className="muted small">
+            {h.hostId && (
+              <>
+                {t("host.hostId")}: <span className="mono">{h.hostId}</span> ·{" "}
+              </>
+            )}
+            {h.kind === "image" && (
+              <>
+                <span className="badge s-WAIVED">{t("host.image")}</span>{" "}
+                {h.imageRef && <span className="mono">{h.imageRef}</span>}{" "}
+                {h.imageDigest && (
+                  <span className="mono" title={h.imageDigest}>
+                    {t("host.imageId")} {h.imageDigest.slice(7, 19)}
+                  </span>
+                )}{" "}
+                ·{" "}
+              </>
+            )}
+            {t("host.lastScan")}: {ago(h.lastScanAt, now, t)} {h.stale && <span className="badge s-MANUAL">{t("stale")}</span>} {h.signed && <SignedBadge fingerprint={h.keyFingerprint} />}
+          </p>
+          <StatusBar counts={h.counts} legend />
+        </div>
+        <Gauge score={h.score} label={t("host.passRate")} />
+      </header>
+      {h.kind !== "image" && <ScanNow hostId={id} onDone={reload} />}
+      {(h.packs?.length ?? 0) > 0 && (
+        <p className="muted small packs">
+          {t("host.packs")}:{" "}
+          {h.packs?.map((p) => (
+            <span key={`${p.name}/${p.version}/${p.digest}`} className="chip-label" title={p.digest}>
+              {p.name} {p.version} <span className="mono">{(p.digest ?? "").slice(0, 19)}</span>
+            </span>
+          ))}
+        </p>
+      )}
+      {h.otherProfile ? <p className="muted small">{t("profile.hostOther", { profiles: (h.profiles ?? []).join(", ") })}</p> : null}
+      {previous && (
+        <SinceLast
+          diff={{ ...since, data: sinceHere }}
+          previous={previous}
+          onOpen={(key) => {
+            show("controls");
+            setFocus({ key, n: Date.now() });
+          }}
+          onCompare={() => {
+            setTab("history");
+            setCompare([previous.id, latest.id]);
+          }}
+        />
+      )}
+
+      <div className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "controls"} className={tab === "controls" ? "on" : ""} onClick={() => show("controls")}>
+          {t("host.tabControls")} <span className="count">{h.controls.length}</span>
+        </button>
+        <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => show("history")}>
+          {t("host.tabHistory")} <span className="count">{h.scans.length}</span>
+        </button>
+      </div>
+
+      {tab === "controls" ? <Controls controls={h.controls} scanId={h.latestScan} worse={worse} focus={focus} /> : <History key={compare?.join("-") ?? ""} scans={h.scans} initial={compare} />}
+    </div>
+  );
+}
+
+/** What changed between the host's previous scan and its latest one: the controls that got worse or were fixed. */
+function SinceLast({ diff, previous, onOpen, onCompare }: { diff: Async<Diff | null>; previous: ScanRow; onOpen: (key: string) => void; onCompare: () => void }) {
+  const { t, lang } = useI18n();
+  const now = useNow();
+  if (diff.error) return null; // the history still compares the scans and says what went wrong
+  const d = diff.data;
+  const items = d ? [...d.regressed.map((c) => ({ c, kind: "regressed" as const })), ...d.fixed.map((c) => ({ c, kind: "fixed" as const }))] : [];
+  const more = d ? d.changed.length + d.added.length + d.removed.length + Math.max(0, items.length - SINCE_MAX) : 0;
+  return (
+    <section className="card">
+      <div className="titlebar">
+        <div>
+          <h2>{t("since.title")}</h2>
+          <p className="muted small">{t("since.help", { prev: t("host.scan", { id: previous.id }), ago: ago(previous.receivedAt, now, t) })}</p>
+        </div>
+        <button className="compact" onClick={onCompare}>
+          {t("since.compare")}
+        </button>
+      </div>
+      {!d ? (
+        <p className="muted">{t("loading")}</p>
+      ) : items.length === 0 ? (
+        <p className="muted small">{t("since.none")}</p>
+      ) : (
+        <ul className="changes">
+          {items.slice(0, SINCE_MAX).map(({ c, kind }) => (
+            <li key={`${kind}/${c.profile}/${c.id}`}>
+              <span className={`kind kind-${kind}`}>{t(`change.${kind}`)}</span>
+              <span className="changes-what">
+                <button className="linkbutton" onClick={() => onOpen(`${c.profile}/${c.id}`)}>
+                  <span className="mono id">{c.id}</span> {ctitle(c, lang)}
+                </button>
+              </span>
+              <span className="since-status">
+                {c.old === c.new ? (
+                  <>
+                    <StatusBadge status={c.new} /> <span className="muted small">{t("diff.checksChanged")}</span>
+                  </>
+                ) : (
+                  <>
+                    <StatusBadge status={c.old} /> → <StatusBadge status={c.new} />
+                  </>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {more > 0 && <p className="muted small">{t("since.more", more)}</p>}
+    </section>
+  );
+}
+
+function Controls({ controls, scanId, worse, focus }: { controls: ControlRow[]; scanId: number; worse: Set<string>; focus: { key: string; n: number } | null }) {
   const { t, lang } = useI18n();
   const [q, setQ] = useState("");
   const [shown, setShown] = useState<Set<Status>>(new Set(["FAIL", "ERROR", "MANUAL", "WAIVED"]));
@@ -89,6 +178,23 @@ function Controls({ controls, scanId }: { controls: ControlRow[]; scanId: number
   // The stored result holds the evidence. It is fetched the first time a control is opened and kept.
   const [wanted, setWanted] = useState(false);
   const doc = useAsync(() => (wanted ? api.scan(scanId) : Promise.resolve(null as ScanDoc | null)), [wanted, scanId]);
+
+  // A control picked in "since the previous scan": clear the search, show its status, open it.
+  useEffect(() => {
+    const c = focus && controls.find((x) => `${x.profile}/${x.id}` === focus.key);
+    if (!focus || !c) return;
+    setQ("");
+    setShown((prev) => (prev.has(c.status) ? prev : new Set([...prev, c.status])));
+    setWanted(true);
+    setOpen(focus.key);
+  }, [focus, controls]);
+  // and bring it into view once it is in the list
+  useEffect(() => {
+    if (!focus || open !== focus.key) return;
+    const row = document.getElementById(`control-${focus.key}`)?.querySelector<HTMLElement>(".control-row");
+    row?.scrollIntoView({ block: "center" });
+    row?.focus({ preventScroll: true });
+  }, [focus, open]);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -131,7 +237,7 @@ function Controls({ controls, scanId }: { controls: ControlRow[]; scanId: number
             const key = `${c.profile}/${c.id}`;
             const expanded = open === key;
             return (
-              <li key={key} className={expanded ? "open" : ""}>
+              <li key={key} id={`control-${key}`} className={expanded ? "open" : ""}>
                 <div
                   className="control-row"
                   role="button"
@@ -147,7 +253,9 @@ function Controls({ controls, scanId }: { controls: ControlRow[]; scanId: number
                 >
                   <IconChevron open={expanded} />
                   <span className="mono id">{c.id}</span>
-                  <span className="control-title">{ctitle(c, lang)}</span>
+                  <span className="control-title">
+                    {worse.has(key) && <span className="kind kind-regressed">{t("change.regressed")}</span>} {ctitle(c, lang)}
+                  </span>
                   <Severity value={c.severity} />
                   <StatusBadge status={c.status} />
                 </div>
@@ -202,11 +310,16 @@ function ControlDetail({ control, doc }: { control: ControlRow; doc: ScanDoc }) 
   );
 }
 
-function History({ scans }: { scans: ScanRow[] }) {
+function History({ scans, initial }: { scans: ScanRow[]; initial: [number, number] | null }) {
   const { t } = useI18n();
   const now = useNow();
-  const [pair, setPair] = useState<[number, number] | null>(null);
-  useEffect(() => setPair(null), [scans]);
+  const [pair, setPair] = useState<[number, number] | null>(initial);
+  // A new scan list (after a reload) closes the comparison.
+  const [seen, setSeen] = useState(scans);
+  if (seen !== scans) {
+    setSeen(scans);
+    setPair(null);
+  }
   const diff = useAsync(() => (pair ? api.diff(pair[0], pair[1]) : Promise.resolve(null as Diff | null)), [pair?.[0], pair?.[1]], false);
   return (
     <div className="stack">
