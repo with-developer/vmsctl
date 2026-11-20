@@ -109,7 +109,7 @@ input::placeholder { color: var(--muted); }
 .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: .6rem .9rem; margin-bottom: -1px; }
 .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
 .count { font-size: .75rem; background: var(--surface-2); color: var(--muted); border-radius: 999px; padding: 0 .45rem; }
-.chip.on .count { background: rgb(255 255 255 / 22%); color: inherit; }
+.chip.on .count { background: rgb(0 0 0 / 18%); color: inherit; }
 
 /* Surfaces */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.15rem 1.3rem; box-shadow: var(--shadow); }
@@ -380,3 +380,11 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 }
 .changes-what a { text-decoration: underline; text-underline-offset: 2px; }
 .tile .pill { justify-self: start; }
+/* "Since the previous scan" on the host page */
+.linkbutton { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.linkbutton:hover { color: var(--accent); }
+.since-status { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+.control-title .kind { margin-right: .3rem; font-size: .72rem; padding: .1rem .35rem; }
+@media (max-width: 720px) {
+  .since-status { grid-column: 2; }
+}
