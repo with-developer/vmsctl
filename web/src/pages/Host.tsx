@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { type Async, useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
@@ -12,10 +12,12 @@ import { STALE_DAYS } from "./Overview";
 
 export function HostPage({ id }: { id: number }) {
   const { t } = useI18n();
+  // The tab lives here, outside Await, so that a reload (after "scan now") keeps it.
+  const [tab, setTab] = useState<Tab>("controls");
   const state = useAsync(() => api.host(id, STALE_DAYS), [id], false);
   return (
     <Await state={state} skeleton={<p className="crumb"><a href={lastListAddress("hosts")}>{t("host.back")}</a></p>}>
-      {(h) => <HostBody h={h} id={id} reload={state.reload} />}
+      {(h) => <HostBody h={h} id={id} reload={state.reload} tab={tab} setTab={setTab} />}
     </Await>
   );
 }
@@ -23,23 +25,25 @@ export function HostPage({ id }: { id: number }) {
 /** How many changes the "since the previous scan" card lists before it points at the comparison. */
 const SINCE_MAX = 8;
 
-function HostBody({ h, id, reload }: { h: HostDetail; id: number; reload: () => void }) {
+type Tab = "controls" | "history";
+
+function HostBody({ h, id, reload, tab, setTab }: { h: HostDetail; id: number; reload: () => void; tab: Tab; setTab: (t: Tab) => void }) {
   const { t } = useI18n();
   const now = useNow();
-  const [tab, setTab] = useState<"controls" | "history">("controls");
-  // A control to open in the list (n tells a second click on the same control from the first), and a pair of scans to compare.
-  const [focus, setFocus] = useState<{ key: string; n: number } | null>(null);
-  const [compare, setCompare] = useState<[number, number] | null>(null);
+  // A control to open in the list, until the list has opened it; and a pair of scans to compare (n makes every click a new one).
+  const [focus, setFocus] = useState<string | null>(null);
+  const [compare, setCompare] = useState<{ pair: [number, number]; n: number } | null>(null);
   const [latest, previous] = h.scans;
   const since = useAsync(() => (previous ? api.diff(previous.id, latest.id) : Promise.resolve(null as Diff | null)), [previous?.id, latest?.id], false);
   // The comparison covers the whole scans; the page shows the controls of the chosen profile.
   const sinceHere = useMemo(() => {
-    const keys = new Set(h.controls.map((c) => `${c.profile}/${c.id}`));
+    const profiles = new Set(h.controls.map((c) => c.profile));
     const d = since.data;
-    return d && { ...d, regressed: d.regressed.filter((c) => keys.has(`${c.profile}/${c.id}`)), fixed: d.fixed.filter((c) => keys.has(`${c.profile}/${c.id}`)) };
+    const here = (list: ControlChange[]) => list.filter((c) => profiles.has(c.profile));
+    return d && { ...d, regressed: here(d.regressed), fixed: here(d.fixed), changed: here(d.changed), added: here(d.added), removed: here(d.removed) };
   }, [h.controls, since.data]);
   const worse = useMemo(() => new Set((sinceHere?.regressed ?? []).map((c) => `${c.profile}/${c.id}`)), [sinceHere]);
-  const show = (next: "controls" | "history") => {
+  const show = (next: Tab) => {
     setCompare(null);
     setTab(next);
   };
@@ -94,11 +98,11 @@ function HostBody({ h, id, reload }: { h: HostDetail; id: number; reload: () => 
           previous={previous}
           onOpen={(key) => {
             show("controls");
-            setFocus({ key, n: Date.now() });
+            setFocus(key);
           }}
           onCompare={() => {
             setTab("history");
-            setCompare([previous.id, latest.id]);
+            setCompare({ pair: [previous.id, latest.id], n: Date.now() });
           }}
         />
       )}
@@ -112,7 +116,7 @@ function HostBody({ h, id, reload }: { h: HostDetail; id: number; reload: () => 
         </button>
       </div>
 
-      {tab === "controls" ? <Controls controls={h.controls} scanId={h.latestScan} worse={worse} focus={focus} /> : <History key={compare?.join("-") ?? ""} scans={h.scans} initial={compare} />}
+      {tab === "controls" ? <Controls controls={h.controls} scanId={h.latestScan} worse={worse} focus={focus} onFocused={() => setFocus(null)} /> : <History key={compare?.n ?? 0} scans={h.scans} initial={compare?.pair ?? null} />}
     </div>
   );
 }
@@ -125,6 +129,8 @@ function SinceLast({ diff, previous, onOpen, onCompare }: { diff: Async<Diff | n
   const d = diff.data;
   const items = d ? [...d.regressed.map((c) => ({ c, kind: "regressed" as const })), ...d.fixed.map((c) => ({ c, kind: "fixed" as const }))] : [];
   const more = d ? d.changed.length + d.added.length + d.removed.length + Math.max(0, items.length - SINCE_MAX) : 0;
+  // Nothing got worse or was fixed because the two scans checked other controls (another profile, a new revision): say so.
+  const other = d ? d.added.length + d.removed.length : 0;
   return (
     <section className="card">
       <div className="titlebar">
@@ -139,7 +145,7 @@ function SinceLast({ diff, previous, onOpen, onCompare }: { diff: Async<Diff | n
       {!d ? (
         <p className="muted">{t("loading")}</p>
       ) : items.length === 0 ? (
-        <p className="muted small">{t("since.none")}</p>
+        <p className="muted small">{t(other > 0 ? "since.other" : "since.none")}</p>
       ) : (
         <ul className="changes">
           {items.slice(0, SINCE_MAX).map(({ c, kind }) => (
@@ -170,7 +176,7 @@ function SinceLast({ diff, previous, onOpen, onCompare }: { diff: Async<Diff | n
   );
 }
 
-function Controls({ controls, scanId, worse, focus }: { controls: ControlRow[]; scanId: number; worse: Set<string>; focus: { key: string; n: number } | null }) {
+function Controls({ controls, scanId, worse, focus, onFocused }: { controls: ControlRow[]; scanId: number; worse: Set<string>; focus: string | null; onFocused: () => void }) {
   const { t, lang } = useI18n();
   const [q, setQ] = useState("");
   const [shown, setShown] = useState<Set<Status>>(new Set(["FAIL", "ERROR", "MANUAL", "WAIVED"]));
@@ -179,27 +185,35 @@ function Controls({ controls, scanId, worse, focus }: { controls: ControlRow[]; 
   const [wanted, setWanted] = useState(false);
   const doc = useAsync(() => (wanted ? api.scan(scanId) : Promise.resolve(null as ScanDoc | null)), [wanted, scanId]);
 
-  // A control picked in "since the previous scan": clear the search, show its status, open it.
-  useEffect(() => {
-    const c = focus && controls.find((x) => `${x.profile}/${x.id}` === focus.key);
-    if (!focus || !c) return;
-    setQ("");
-    setShown((prev) => (prev.has(c.status) ? prev : new Set([...prev, c.status])));
-    setWanted(true);
-    setOpen(focus.key);
-  }, [focus, controls]);
-  // and bring it into view once it is in the list
-  useEffect(() => {
-    if (!focus || open !== focus.key) return;
-    const row = document.getElementById(`control-${focus.key}`)?.querySelector<HTMLElement>(".control-row");
-    row?.scrollIntoView({ block: "center" });
-    row?.focus({ preventScroll: true });
-  }, [focus, open]);
-
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return controls.filter((c) => shown.has(c.status) && (!needle || c.id.toLowerCase().includes(needle) || c.title.toLowerCase().includes(needle) || (c.titleKo ?? "").toLowerCase().includes(needle))).sort(compareControls);
   }, [controls, q, shown]);
+
+  // A control picked in "since the previous scan": clear the search, show its status, open it, once.
+  const scrollTo = useRef<string | null>(null);
+  const [jump, setJump] = useState(0); // a second pick of the control already open still scrolls to it
+  useEffect(() => {
+    if (!focus) return;
+    const c = controls.find((x) => `${x.profile}/${x.id}` === focus);
+    if (c) {
+      setQ("");
+      setShown((prev) => (prev.has(c.status) ? prev : new Set([...prev, c.status])));
+      setWanted(true);
+      setOpen(focus);
+      scrollTo.current = focus;
+      setJump((n) => n + 1);
+    }
+    onFocused();
+  }, [focus, controls, onFocused]);
+  // and bring it into view once it is in the list
+  useEffect(() => {
+    if (!scrollTo.current || open !== scrollTo.current) return;
+    const row = document.getElementById(`control-${scrollTo.current}`)?.querySelector<HTMLElement>(".control-row");
+    scrollTo.current = null;
+    row?.scrollIntoView({ block: "center" });
+    row?.focus({ preventScroll: true });
+  }, [open, rows, jump]);
 
   if (controls.length === 0) return <Empty>{t("host.noControls")}</Empty>;
   const toggleStatus = (s: Status) =>
@@ -314,12 +328,11 @@ function History({ scans, initial }: { scans: ScanRow[]; initial: [number, numbe
   const { t } = useI18n();
   const now = useNow();
   const [pair, setPair] = useState<[number, number] | null>(initial);
-  // A new scan list (after a reload) closes the comparison.
-  const [seen, setSeen] = useState(scans);
-  if (seen !== scans) {
-    setSeen(scans);
-    setPair(null);
-  }
+  // A comparison asked for from "since the previous scan" is below the chart and the list: bring it into view.
+  const card = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (initial) card.current?.scrollIntoView({ block: "start" });
+  }, [initial]);
   const diff = useAsync(() => (pair ? api.diff(pair[0], pair[1]) : Promise.resolve(null as Diff | null)), [pair?.[0], pair?.[1]], false);
   return (
     <div className="stack">
@@ -381,7 +394,7 @@ function History({ scans, initial }: { scans: ScanRow[]; initial: [number, numbe
         </ul>
       </section>
       {pair && (
-        <section className="card">
+        <section className="card" ref={card}>
           <div className="titlebar">
             <h2>
               {t("host.scan", { id: pair[0] })} → {t("host.scan", { id: pair[1] })}
