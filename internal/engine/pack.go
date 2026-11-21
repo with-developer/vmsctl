@@ -206,6 +206,10 @@ func plainText(c *Check, p *Profile) error {
 		errs = append(errs, line("title", p.Title), line("title_ko", p.TitleKo))
 		for _, ctl := range p.Controls {
 			errs = append(errs, line("control id", ctl.ID), line("control "+ctl.ID+" title", ctl.Title), line("control "+ctl.ID+" title_ko", ctl.TitleKo), prose("control "+ctl.ID+" manual", ctl.Manual), prose("control "+ctl.ID+" manual_ko", ctl.ManualKo))
+			if ctl.Area != "" {
+				// The dashboard takes areas from the built-in profiles it knows; a pack's area would reach nobody.
+				errs = append(errs, fmt.Errorf("control %s: area is set only in built-in profiles", ctl.ID))
+			}
 		}
 	}
 	return errors.Join(errs...)

@@ -338,6 +338,13 @@ func TestLoadRejectsInvalidContent(t *testing.T) {
 			t.Errorf("err = %v", err)
 		}
 	})
+	t.Run("unknown area", func(t *testing.T) {
+		profiles := fstest.MapFS{"p.yaml": {Data: []byte("id: p\nrevision: 1\ntitle: P\ncontrols:\n  - {id: C, title: C, severity: low, area: network, manual: m}\n")}}
+		_, err := Load(fstest.MapFS{}, profiles)
+		if err == nil || !strings.Contains(err.Error(), "C: area must be one of accounts, files, services, patches, logs") {
+			t.Errorf("err = %v", err)
+		}
+	})
 }
 
 func TestNewRejectsBadExpressions(t *testing.T) {

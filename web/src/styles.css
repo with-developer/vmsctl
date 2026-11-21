@@ -388,3 +388,8 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 @media (max-width: 720px) {
   .since-status { grid-column: 2; }
 }
+/* The host page's controls, by area */
+.areas .controls { margin: 0; }
+.area-head { margin: 0; padding: .7rem 1.1rem .45rem; font-size: .9rem; background: var(--surface-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+.areas > section:first-child .area-head { border-top: 0; }
+.areas > section:not(:last-child) .controls > li:last-child { border-bottom: 0; }

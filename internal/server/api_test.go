@@ -1042,3 +1042,44 @@ func TestOverviewFixFirstOrder(t *testing.T) {
 		t.Errorf("order = %+v", o.TopFailing)
 	}
 }
+
+// A host's controls carry the area and the Korean title of the built-in profile.
+func TestHostControlsArea(t *testing.T) {
+	f := newAPIFixture(t)
+	content, err := engine.Load(rules.FS, profiles.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(Config{Store: f.store, Rate: 100000, Now: func() time.Time { return f.clock }, Content: content})
+	var hosts struct {
+		Hosts []struct {
+			ID   int64
+			Name string
+		} `json:"hosts"`
+	}
+	f.json(t, "/api/v1/hosts?q=web-01", &hosts)
+	if len(hosts.Hosts) != 1 {
+		t.Fatalf("hosts = %+v", hosts)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/hosts/"+itoa(hosts.Hosts[0].ID), nil)
+	req.Header.Set("Authorization", "Bearer "+f.api)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	var d HostDetail
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	want := map[string]string{"U-01": "accounts", "U-04": "accounts", "U-08": "accounts"}
+	found := 0
+	for _, c := range d.Controls {
+		if a, ok := want[c.ID]; ok && c.Profile == "kisa-2026" {
+			found++
+			if c.Area != a || c.TitleKo == "" {
+				t.Errorf("%s: area %q, titleKo %q", c.ID, c.Area, c.TitleKo)
+			}
+		}
+	}
+	if found == 0 {
+		t.Fatalf("no known control in %+v", d.Controls)
+	}
+}

@@ -246,47 +246,92 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
       {rows.length === 0 ? (
         <Empty>{t("host.empty")}</Empty>
       ) : (
-        <ul className="controls">
-          {rows.map((c) => {
-            const key = `${c.profile}/${c.id}`;
-            const expanded = open === key;
-            return (
-              <li key={key} id={`control-${key}`} className={expanded ? "open" : ""}>
-                <div
-                  className="control-row"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expanded}
-                  onClick={() => toggleOpen(key)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault(); // Space must not scroll the page
-                      toggleOpen(key);
-                    }
-                  }}
-                >
-                  <IconChevron open={expanded} />
-                  <span className="mono id">{c.id}</span>
-                  <span className="control-title">
-                    {worse.has(key) && <span className="kind kind-regressed">{t("change.regressed")}</span>} {ctitle(c, lang)}
+        <div className="areas">
+          {groupByArea(rows, controls).map((g) => (
+            <section key={g.key} aria-labelledby={g.area ? `area-${g.key}` : undefined}>
+              {g.area !== "" && (
+                <h3 className="area-head" id={`area-${g.key}`}>
+                  {g.profile && <span className="mono">{g.profile}</span>} {t(`area.${g.area}`)}{" "}
+                  <span className="muted small">
+                    {(["FAIL", "ERROR", "MANUAL"] as Status[])
+                      .filter((st) => g.counts[st])
+                      .map((st) => `${t(`status.${st}`)} ${g.counts[st]}`)
+                      .join(" · ")}
                   </span>
-                  <Severity value={c.severity} />
-                  <StatusBadge status={c.status} />
-                </div>
-                {expanded && (
-                  <div className="control-body">
-                    {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
-                    {doc.error && <p className="error-text">{doc.error.message}</p>}
-                    {doc.data && <ControlDetail control={c} doc={doc.data} />}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                </h3>
+              )}
+              <ul className="controls">
+                {g.rows.map((c) => {
+                  const key = `${c.profile}/${c.id}`;
+                  const expanded = open === key;
+                  return (
+                    <li key={key} id={`control-${key}`} className={expanded ? "open" : ""}>
+                      <div
+                        className="control-row"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
+                        onClick={() => toggleOpen(key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault(); // Space must not scroll the page
+                            toggleOpen(key);
+                          }
+                        }}
+                      >
+                        <IconChevron open={expanded} />
+                        <span className="mono id">{c.id}</span>
+                        <span className="control-title">
+                          {worse.has(key) && <span className="kind kind-regressed">{t("change.regressed")}</span>} {ctitle(c, lang)}
+                        </span>
+                        <Severity value={c.severity} />
+                        <StatusBadge status={c.status} />
+                      </div>
+                      {expanded && (
+                        <div className="control-body">
+                          {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
+                          {doc.error && <p className="error-text">{doc.error.message}</p>}
+                          {doc.data && <ControlDetail control={c} doc={doc.data} />}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </section>
   );
+}
+
+const AREAS = ["accounts", "files", "services", "patches", "logs"]; // the order of the profiles' areas (internal/engine)
+
+type AreaGroup = { key: string; profile: string; area: string; rows: ControlRow[]; counts: Partial<Record<Status, number>> };
+
+/**
+ * The shown rows in the areas of their profile, each area in the profiles' order, with what the whole area has (not only the shown
+ * rows) for its heading. Controls of a profile without areas (a policy pack's) come last, as "other"; with no area at all there is one
+ * group and no heading. With several profiles on the page, each profile has its own areas, named with the profile.
+ */
+function groupByArea(rows: ControlRow[], all: ControlRow[]): AreaGroup[] {
+  if (!all.some((c) => c.area)) return [{ key: "", profile: "", area: "", rows, counts: {} }];
+  const profiles = [...new Set(all.map((c) => c.profile))].sort();
+  const several = profiles.length > 1;
+  const areaOf = (c: ControlRow) => (c.area && AREAS.includes(c.area) ? c.area : "other");
+  const groups = new Map<string, AreaGroup>();
+  for (const p of profiles) {
+    for (const a of [...AREAS, "other"]) {
+      groups.set(`${p}/${a}`, { key: `${p}/${a}`, profile: several ? p : "", area: a, rows: [], counts: {} });
+    }
+  }
+  for (const c of all) {
+    const g = groups.get(`${c.profile}/${areaOf(c)}`);
+    if (g) g.counts[c.status] = (g.counts[c.status] ?? 0) + 1;
+  }
+  for (const c of rows) groups.get(`${c.profile}/${areaOf(c)}`)?.rows.push(c);
+  return [...groups.values()].filter((g) => g.rows.length > 0);
 }
 
 /** The checks of a control and what they observed. All of it is host text: shown as text only. */

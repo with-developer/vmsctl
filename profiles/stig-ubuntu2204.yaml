@@ -16,6 +16,7 @@ controls:
     title: Ctrl-Alt-Delete does not reboot the host
     title_ko: Ctrl-Alt-Delete로 호스트가 재부팅되지 않음
     severity: high
+    area: services
     checks: [services.unit-masked]
     params:
       services.unit-masked: {unit: ctrl-alt-del.target}
@@ -23,16 +24,19 @@ controls:
     title: Kernel messages are restricted to privileged users
     title_ko: 커널 메시지를 권한 있는 사용자만 볼 수 있음
     severity: low
+    area: services
     checks: [sysctl.dmesg-restrict]
   - id: UBTU-22-213020
     title: Address space layout randomization is on
     title_ko: 주소 공간 배치 무작위화가 켜져 있음
     severity: medium
+    area: services
     checks: [sysctl.aslr]
   - id: UBTU-22-215010
     title: The password quality library is installed
     title_ko: 비밀번호 품질 라이브러리가 설치되어 있음
     severity: medium
+    area: accounts
     checks: [packages.installed]
     params:
       packages.installed: {package: libpam-pwquality}
@@ -40,6 +44,7 @@ controls:
     title: chrony is installed
     title_ko: chrony가 설치되어 있음
     severity: low
+    area: logs
     checks: [packages.installed]
     params:
       packages.installed: {package: chrony}
@@ -47,6 +52,7 @@ controls:
     title: systemd-timesyncd is not installed
     title_ko: systemd-timesyncd가 설치되어 있지 않음
     severity: low
+    area: logs
     checks: [packages.absent]
     params:
       packages.absent: {package: systemd-timesyncd}
@@ -54,6 +60,7 @@ controls:
     title: ntp is not installed
     title_ko: ntp가 설치되어 있지 않음
     severity: low
+    area: logs
     checks: [packages.absent]
     params:
       packages.absent: {package: ntp}
@@ -61,6 +68,7 @@ controls:
     title: The rsh server is not installed
     title_ko: rsh 서버가 설치되어 있지 않음
     severity: high
+    area: services
     checks: [packages.absent]
     params:
       packages.absent: {package: rsh-server}
@@ -68,6 +76,7 @@ controls:
     title: The telnet server is not installed
     title_ko: telnet 서버가 설치되어 있지 않음
     severity: high
+    area: services
     checks: [packages.absent]
     params:
       packages.absent: {package: telnetd}
@@ -75,6 +84,7 @@ controls:
     title: The NFS server is not installed
     title_ko: NFS 서버가 설치되어 있지 않음
     severity: medium
+    area: services
     checks: [packages.absent]
     params:
       packages.absent: {package: nfs-kernel-server}
@@ -82,6 +92,7 @@ controls:
     title: ufw is installed
     title_ko: ufw가 설치되어 있음
     severity: medium
+    area: services
     checks: [packages.installed]
     params:
       packages.installed: {package: ufw}
@@ -89,11 +100,13 @@ controls:
     title: ufw is turned on
     title_ko: ufw가 켜져 있음
     severity: medium
+    area: services
     checks: [firewall.ufw-active]
   - id: UBTU-22-251020
     title: The ufw service starts at boot
     title_ko: ufw 서비스가 부팅할 때 시작함
     severity: medium
+    area: services
     checks: [services.unit-enabled]
     params:
       services.unit-enabled: {unit: ufw.service}
@@ -101,11 +114,13 @@ controls:
     title: TCP SYN cookies are on
     title_ko: TCP SYN 쿠키가 켜져 있음
     severity: medium
+    area: services
     checks: [sysctl.syncookies]
   - id: UBTU-22-255010
     title: The SSH server is installed
     title_ko: SSH 서버가 설치되어 있음
     severity: high
+    area: services
     checks: [packages.installed]
     params:
       packages.installed: {package: openssh-server}
@@ -113,6 +128,7 @@ controls:
     title: The SSH service starts at boot
     title_ko: SSH 서비스가 부팅할 때 시작함
     severity: high
+    area: services
     checks: [services.unit-enabled]
     params:
       services.unit-enabled: {unit: ssh.service}
@@ -120,26 +136,31 @@ controls:
     title: SSH allows no empty passwords and no user environment
     title_ko: SSH가 빈 비밀번호와 사용자 환경 변수를 허용하지 않음
     severity: high
+    area: services
     checks: [ssh.permit-empty-passwords, ssh.permit-user-environment]
   - id: UBTU-22-255040
     title: SSH does not forward X11
     title_ko: SSH가 X11을 전달하지 않음
     severity: high
+    area: services
     checks: [ssh.x11-forwarding]
   - id: UBTU-22-411010
     title: The root account is locked
     title_ko: root 계정이 잠겨 있음
     severity: medium
+    area: accounts
     checks: [accounts.root-locked]
   - id: UBTU-22-411015
     title: Every account has its own UID
     title_ko: 계정마다 고유한 UID를 가짐
     severity: medium
+    area: accounts
     checks: [accounts.unique-uids]
   - id: UBTU-22-411025
     title: A password cannot be changed again within a day
     title_ko: 비밀번호를 하루 안에 다시 바꿀 수 없음
     severity: medium
+    area: accounts
     checks: [accounts.password-min-age]
     params:
       accounts.password-min-age: {min_days: 1}
@@ -147,6 +168,7 @@ controls:
     title: A password expires after 60 days
     title_ko: 비밀번호가 60일 뒤에 만료됨
     severity: medium
+    area: accounts
     checks: [accounts.password-max-age]
     params:
       accounts.password-max-age: {max_days: 60}
@@ -154,6 +176,7 @@ controls:
     title: An idle shell session ends after 15 minutes
     title_ko: 유휴 셸 세션이 15분 뒤에 끝남
     severity: medium
+    area: accounts
     checks: [accounts.session-timeout-set, accounts.session-timeout-value]
     params:
       accounts.session-timeout-value: {max_seconds: 900}
@@ -161,6 +184,7 @@ controls:
     title: AppArmor is installed
     title_ko: AppArmor가 설치되어 있음
     severity: medium
+    area: files
     checks: [packages.installed]
     params:
       packages.installed: {package: apparmor}
@@ -168,6 +192,7 @@ controls:
     title: A password has at least 15 characters
     title_ko: 비밀번호가 15자 이상임
     severity: medium
+    area: accounts
     checks: [accounts.password-min-length]
     params:
       accounts.password-min-length: {min_length: 15}
@@ -175,11 +200,13 @@ controls:
     title: No account has an empty password
     title_ko: 비밀번호가 비어 있는 계정이 없음
     severity: high
+    area: accounts
     checks: [accounts.no-empty-passwords]
   - id: UBTU-22-653010
     title: The audit daemon is installed
     title_ko: 감사 데몬(auditd)이 설치되어 있음
     severity: medium
+    area: logs
     checks: [packages.installed]
     params:
       packages.installed: {package: auditd}
@@ -187,6 +214,7 @@ controls:
     title: Every use of apparmor_parser is audited
     title_ko: apparmor_parser 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /sbin/apparmor_parser}
@@ -194,6 +222,7 @@ controls:
     title: Every use of chacl is audited
     title_ko: chacl 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/chacl}
@@ -201,6 +230,7 @@ controls:
     title: Every use of chage is audited
     title_ko: chage 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/chage}
@@ -208,6 +238,7 @@ controls:
     title: Every use of chcon is audited
     title_ko: chcon 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/chcon}
@@ -215,6 +246,7 @@ controls:
     title: Every use of chfn is audited
     title_ko: chfn 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/chfn}
@@ -222,6 +254,7 @@ controls:
     title: Every use of chsh is audited
     title_ko: chsh 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/chsh}
@@ -229,6 +262,7 @@ controls:
     title: Every use of crontab is audited
     title_ko: crontab 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/crontab}
@@ -236,6 +270,7 @@ controls:
     title: Every use of fdisk is audited
     title_ko: fdisk 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /usr/sbin/fdisk, perms: x}
@@ -243,6 +278,7 @@ controls:
     title: Every use of gpasswd is audited
     title_ko: gpasswd 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/gpasswd}
@@ -250,6 +286,7 @@ controls:
     title: Every use of kmod is audited
     title_ko: kmod 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /bin/kmod, perms: x}
@@ -257,6 +294,7 @@ controls:
     title: Every use of modprobe is audited
     title_ko: modprobe 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /sbin/modprobe, perms: x}
@@ -264,6 +302,7 @@ controls:
     title: Every use of mount is audited
     title_ko: mount 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/mount}
@@ -271,6 +310,7 @@ controls:
     title: Every use of newgrp is audited
     title_ko: newgrp 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/newgrp}
@@ -278,6 +318,7 @@ controls:
     title: Every use of pam_timestamp_check is audited
     title_ko: pam_timestamp_check 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/sbin/pam_timestamp_check}
@@ -285,6 +326,7 @@ controls:
     title: Every use of passwd is audited
     title_ko: passwd 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/passwd}
@@ -292,6 +334,7 @@ controls:
     title: Every use of setfacl is audited
     title_ko: setfacl 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/setfacl}
@@ -299,6 +342,7 @@ controls:
     title: Every use of ssh-agent is audited
     title_ko: ssh-agent 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/ssh-agent}
@@ -306,6 +350,7 @@ controls:
     title: Every use of ssh-keysign is audited
     title_ko: ssh-keysign 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/lib/openssh/ssh-keysign}
@@ -313,6 +358,7 @@ controls:
     title: Every use of su is audited
     title_ko: su 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /bin/su}
@@ -320,6 +366,7 @@ controls:
     title: Every use of sudo is audited
     title_ko: sudo 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/sudo}
@@ -327,6 +374,7 @@ controls:
     title: Every use of sudoedit is audited
     title_ko: sudoedit 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/sudoedit}
@@ -334,6 +382,7 @@ controls:
     title: Every use of umount is audited
     title_ko: umount 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/bin/umount}
@@ -341,6 +390,7 @@ controls:
     title: Every use of unix_update is audited
     title_ko: unix_update 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /sbin/unix_update}
@@ -348,6 +398,7 @@ controls:
     title: Every use of usermod is audited
     title_ko: usermod 명령을 쓸 때마다 감사 기록을 남김
     severity: medium
+    area: logs
     checks: [audit.command-audited]
     params:
       audit.command-audited: {path: /usr/sbin/usermod}
@@ -355,6 +406,7 @@ controls:
     title: Changes to /etc/group are audited
     title_ko: /etc/group의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/group, perms: wa}
@@ -362,6 +414,7 @@ controls:
     title: Changes to /etc/gshadow are audited
     title_ko: /etc/gshadow의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/gshadow, perms: wa}
@@ -369,6 +422,7 @@ controls:
     title: Changes to /etc/security/opasswd are audited
     title_ko: /etc/security/opasswd의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/security/opasswd, perms: wa}
@@ -376,6 +430,7 @@ controls:
     title: Changes to /etc/passwd are audited
     title_ko: /etc/passwd의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/passwd, perms: wa}
@@ -383,6 +438,7 @@ controls:
     title: Changes to /etc/shadow are audited
     title_ko: /etc/shadow의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/shadow, perms: wa}
@@ -390,6 +446,7 @@ controls:
     title: Changes to the systemd journal files are audited
     title_ko: systemd 저널 파일의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/journal, perms: wa}
@@ -397,6 +454,7 @@ controls:
     title: Changes to /var/log/btmp are audited
     title_ko: /var/log/btmp의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/btmp, perms: wa}
@@ -404,6 +462,7 @@ controls:
     title: Changes to /var/log/wtmp are audited
     title_ko: /var/log/wtmp의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/wtmp, perms: wa}
@@ -411,6 +470,7 @@ controls:
     title: Changes to /var/run/utmp are audited
     title_ko: /var/run/utmp의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/run/utmp, perms: wa}
@@ -418,6 +478,7 @@ controls:
     title: Changes to /var/log/faillog are audited
     title_ko: /var/log/faillog의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/faillog, perms: wa}
@@ -425,6 +486,7 @@ controls:
     title: Changes to /var/log/lastlog are audited
     title_ko: /var/log/lastlog의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/lastlog, perms: wa}
@@ -432,6 +494,7 @@ controls:
     title: Changes to /etc/sudoers are audited
     title_ko: /etc/sudoers의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/sudoers, perms: wa}
@@ -439,6 +502,7 @@ controls:
     title: Changes to /etc/sudoers.d are audited
     title_ko: /etc/sudoers.d의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /etc/sudoers.d, perms: wa}
@@ -446,6 +510,7 @@ controls:
     title: Changes to /var/log/sudo.log are audited
     title_ko: /var/log/sudo.log의 변경을 감사 기록에 남김
     severity: medium
+    area: logs
     checks: [audit.path-audited]
     params:
       audit.path-audited: {path: /var/log/sudo.log, perms: wa}
