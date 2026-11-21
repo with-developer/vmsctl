@@ -319,7 +319,7 @@ type ControlRow struct {
 	TitleKo  string `json:"titleKo,omitempty"`
 	Severity string `json:"severity"`
 	Status   string `json:"status"`
-	// Area is the control's group in the built-in profile (engine.Areas); empty for a pack's profile.
+	// Area is the control's group in the built-in profile (accounts, files, services, patches, logs); empty for a pack's profile.
 	Area string `json:"area,omitempty"`
 }
 

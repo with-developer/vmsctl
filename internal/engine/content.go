@@ -195,7 +195,7 @@ type Control struct {
 	Title    string   `yaml:"title"`
 	TitleKo  string   `yaml:"title_ko"`
 	Severity Severity `yaml:"severity"`
-	// Area groups the control for reading (one of Areas); it does not change what is checked, and it is not in the profile digest.
+	// Area groups the control for reading (one of areas); it does not change what is checked, and it is not in the profile digest.
 	Area     string                    `yaml:"area"`
 	Checks   []string                  `yaml:"checks"`
 	Manual   string                    `yaml:"manual"`
@@ -203,8 +203,8 @@ type Control struct {
 	Params   map[string]map[string]any `yaml:"params"` // check ID → param → value
 }
 
-// Areas are the groups a profile's controls can be in, in the order a reader goes through them.
-var Areas = []string{"accounts", "files", "services", "patches", "logs"}
+// areas are the groups a profile's controls can be in, in the order a reader goes through them (the dashboard keeps the same list).
+var areas = []string{"accounts", "files", "services", "patches", "logs"}
 
 // Content is the validated set of checks and profiles.
 type Content struct {
@@ -537,8 +537,8 @@ func validateProfile(file string, pr *Profile, checks map[string]*Check) error {
 		if !ctl.Severity.valid() {
 			p.add("%s: severity must be low, medium or high", ctl.ID)
 		}
-		if ctl.Area != "" && !slices.Contains(Areas, ctl.Area) {
-			p.add("%s: area must be one of %s", ctl.ID, strings.Join(Areas, ", "))
+		if ctl.Area != "" && !slices.Contains(areas, ctl.Area) {
+			p.add("%s: area must be one of %s", ctl.ID, strings.Join(areas, ", "))
 		}
 		if (len(ctl.Checks) == 0) == (ctl.Manual == "") {
 			p.add("%s: exactly one of checks or manual is required", ctl.ID)

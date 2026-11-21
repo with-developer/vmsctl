@@ -247,16 +247,15 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
         <Empty>{t("host.empty")}</Empty>
       ) : (
         <div className="areas">
-          {groupByArea(rows).map((g) => (
-            <section key={g.area} aria-labelledby={g.area ? `area-${g.area}` : undefined}>
+          {groupByArea(rows, controls).map((g) => (
+            <section key={g.key} aria-labelledby={g.area ? `area-${g.key}` : undefined}>
               {g.area !== "" && (
-                <h3 className="area-head" id={`area-${g.area}`}>
-                  {t(`area.${g.area}`)}{" "}
+                <h3 className="area-head" id={`area-${g.key}`}>
+                  {g.profile && <span className="mono">{g.profile}</span>} {t(`area.${g.area}`)}{" "}
                   <span className="muted small">
                     {(["FAIL", "ERROR", "MANUAL"] as Status[])
-                      .map((st) => [st, g.rows.filter((c) => c.status === st).length] as const)
-                      .filter(([, n]) => n > 0)
-                      .map(([st, n]) => `${t(`status.${st}`)} ${n}`)
+                      .filter((st) => g.counts[st])
+                      .map((st) => `${t(`status.${st}`)} ${g.counts[st]}`)
                       .join(" · ")}
                   </span>
                 </h3>
@@ -307,19 +306,32 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
   );
 }
 
+const AREAS = ["accounts", "files", "services", "patches", "logs"]; // the order of the profiles' areas (internal/engine)
+
+type AreaGroup = { key: string; profile: string; area: string; rows: ControlRow[]; counts: Partial<Record<Status, number>> };
+
 /**
- * The rows in the areas of their profile (accounts, files, services, patches, logs), each area in the list's order. Rows of a profile
- * without areas (a policy pack's) come last, as "other"; with no area at all there is one group and no heading.
+ * The shown rows in the areas of their profile, each area in the profiles' order, with what the whole area has (not only the shown
+ * rows) for its heading. Controls of a profile without areas (a policy pack's) come last, as "other"; with no area at all there is one
+ * group and no heading. With several profiles on the page, each profile has its own areas, named with the profile.
  */
-function groupByArea(rows: ControlRow[]): { area: string; rows: ControlRow[] }[] {
-  if (!rows.some((c) => c.area)) return [{ area: "", rows }];
-  const order = ["accounts", "files", "services", "patches", "logs"];
-  const groups = new Map<string, ControlRow[]>();
-  for (const c of rows) {
-    const a = c.area && order.includes(c.area) ? c.area : "other";
-    groups.set(a, [...(groups.get(a) ?? []), c]);
+function groupByArea(rows: ControlRow[], all: ControlRow[]): AreaGroup[] {
+  if (!all.some((c) => c.area)) return [{ key: "", profile: "", area: "", rows, counts: {} }];
+  const profiles = [...new Set(all.map((c) => c.profile))].sort();
+  const several = profiles.length > 1;
+  const areaOf = (c: ControlRow) => (c.area && AREAS.includes(c.area) ? c.area : "other");
+  const groups = new Map<string, AreaGroup>();
+  for (const p of profiles) {
+    for (const a of [...AREAS, "other"]) {
+      groups.set(`${p}/${a}`, { key: `${p}/${a}`, profile: several ? p : "", area: a, rows: [], counts: {} });
+    }
   }
-  return [...order, "other"].filter((a) => groups.has(a)).map((a) => ({ area: a, rows: groups.get(a) ?? [] }));
+  for (const c of all) {
+    const g = groups.get(`${c.profile}/${areaOf(c)}`);
+    if (g) g.counts[c.status] = (g.counts[c.status] ?? 0) + 1;
+  }
+  for (const c of rows) groups.get(`${c.profile}/${areaOf(c)}`)?.rows.push(c);
+  return [...groups.values()].filter((g) => g.rows.length > 0);
 }
 
 /** The checks of a control and what they observed. All of it is host text: shown as text only. */

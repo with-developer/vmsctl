@@ -111,7 +111,7 @@ controls:
     title: The clock is kept in sync
     title_ko: 시각이 동기화됨
     severity: medium
-    area: services
+    area: logs
     checks: [services.time-sync]
   - id: ES-19
     title: Set-ID programs are reviewed
@@ -177,5 +177,5 @@ controls:
     title: SSH logs who logs in
     title_ko: SSH가 누가 로그인하는지 기록함
     severity: medium
-    area: services
+    area: logs
     checks: [ssh.log-level]
