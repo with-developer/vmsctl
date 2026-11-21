@@ -281,7 +281,9 @@ func (s *Server) handleHost(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 	default:
 		for i := range d.Controls {
-			d.Controls[i].TitleKo = s.titleKo(d.Controls[i].Profile, d.Controls[i].ID)
+			if c := s.builtinControl(d.Controls[i].Profile, d.Controls[i].ID); c != nil {
+				d.Controls[i].TitleKo, d.Controls[i].Area = c.TitleKo, c.Area
+			}
 		}
 		writeJSON(w, http.StatusOK, d)
 	}
@@ -637,17 +639,25 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 
 // titleKo is the Korean title of a control from the profiles the server has, or "".
 func (s *Server) titleKo(profile, id string) string {
+	if c := s.builtinControl(profile, id); c != nil {
+		return c.TitleKo
+	}
+	return ""
+}
+
+// builtinControl is the control of a profile the server knows (nil for a pack's profile, or without content).
+func (s *Server) builtinControl(profile, id string) *engine.Control {
 	if s.cfg.Content == nil {
-		return ""
+		return nil
 	}
 	if p := s.cfg.Content.Profiles[profile]; p != nil {
-		for _, c := range p.Controls {
-			if c.ID == id {
-				return c.TitleKo
+		for i := range p.Controls {
+			if p.Controls[i].ID == id {
+				return &p.Controls[i]
 			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // handleTrend is the fleet's pass rate over the last days, one point a day (?days=30, at most 90).

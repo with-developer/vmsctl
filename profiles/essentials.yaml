@@ -9,144 +9,173 @@ controls:
     title: SSH does not allow root to log in
     title_ko: SSH로 root가 직접 로그인할 수 없음
     severity: high
+    area: services
     checks: [ssh.permit-root-login, ssh.match-permit-root-login]
   - id: ES-02
     title: SSH logins use keys, not passwords
     title_ko: SSH 로그인에 비밀번호 대신 키를 사용
     severity: medium
+    area: services
     checks: [ssh.password-authentication]
   - id: ES-03
     title: SSH accepts no empty passwords and no host-based trust
     title_ko: SSH가 빈 비밀번호와 호스트 기반 신뢰를 허용하지 않음
     severity: high
+    area: services
     checks: [ssh.permit-empty-passwords, ssh.ignore-rhosts, ssh.hostbased-authentication, ssh.permit-user-environment]
   - id: ES-04
     title: SSH limits attempts, time and features
     title_ko: SSH가 시도 횟수, 시간과 기능을 제한함
     severity: medium
+    area: services
     checks: [ssh.max-auth-tries, ssh.login-grace-time, ssh.x11-forwarding]
   - id: ES-05
     title: No Match block weakens the SSH settings
     title_ko: SSH Match 블록이 설정을 약화시키지 않음
     severity: medium
+    area: services
     checks: [ssh.match-hardening]
   - id: ES-06
     title: Only root has UID 0, and every account has its own UID
     title_ko: UID 0은 root뿐이고 계정마다 고유한 UID를 가짐
     severity: high
+    area: accounts
     checks: [accounts.uid0-only-root, accounts.unique-uids]
   - id: ES-07
     title: Password hashes are protected
     title_ko: 비밀번호 해시가 보호됨
     severity: high
+    area: accounts
     checks: [accounts.passwd-no-hashes, accounts.shadow-file, files.shadow-perms, files.passwd-perms]
   - id: ES-08
     title: Passwords are long and stored with a strong hash
     title_ko: 비밀번호가 길고 강한 해시로 저장됨
     severity: high
+    area: accounts
     checks: [accounts.password-min-length, accounts.password-hash-method, accounts.password-hash-strength]
   - id: ES-09
     title: Accounts lock after repeated login failures
     title_ko: 로그인에 여러 번 실패하면 계정이 잠김
     severity: high
+    area: accounts
     checks: [accounts.lockout-threshold]
   - id: ES-10
     title: Passwords expire
     title_ko: 비밀번호가 만료됨
     severity: medium
+    area: accounts
     checks: [accounts.password-max-age, accounts.password-max-age-existing]
   - id: ES-11
     title: su and sudo are restricted
     title_ko: su와 sudo가 제한됨
     severity: medium
+    area: accounts
     checks: [accounts.su-wheel-only, files.sudoers-perms]
   - id: ES-12
     title: Shells start with safe defaults
     title_ko: 셸이 안전한 기본값으로 시작함
     severity: high
+    area: files
     checks: [env.path-current-dir, env.umask-login-defs]
   - id: ES-13
     title: Scheduled jobs are private to root
     title_ko: 예약 작업이 root에게만 열려 있음
     severity: high
+    area: files
     checks: [files.cron-commands, files.cron-files, files.cron-scripts, files.cron-spool, files.cron-spool-rhel, files.cron-root-spool, files.at-spool]
   - id: ES-14
     title: No legacy remote services
     title_ko: 오래된 원격 서비스를 쓰지 않음
     severity: high
+    area: services
     checks: [services.no-telnet, services.no-r-services, files.rhosts, files.rhosts-homes, services.no-tftp-talk, services.no-finger, services.no-nis]
   - id: ES-15
     title: No stray files with dangerous permissions
     title_ko: 위험한 권한의 파일이 방치되어 있지 않음
     severity: high
+    area: files
     checks: [files.world-writable, files.unowned, files.setid-outside-system-dirs, files.dev-regular-files]
   - id: ES-16
     title: Start-up scripts and units cannot be changed by others
     title_ko: 시작 스크립트와 유닛을 다른 사용자가 바꿀 수 없음
     severity: high
+    area: files
     checks: [files.startup-scripts]
   - id: ES-17
     title: Home directories are private
     title_ko: 홈 디렉터리가 비공개임
     severity: high
+    area: accounts
     checks: [homes.owner-perms, homes.startup-files]
   - id: ES-18
     title: The clock is kept in sync
     title_ko: 시각이 동기화됨
     severity: medium
+    area: services
     checks: [services.time-sync]
   - id: ES-19
     title: Set-ID programs are reviewed
     title_ko: Set-ID 프로그램을 검토함
     severity: medium
+    area: files
     checks: [files.review-setid]
   - id: ES-20
     title: Accounts that can log in are reviewed
     title_ko: 로그인할 수 있는 계정을 검토함
     severity: low
+    area: accounts
     checks: [accounts.review-login-accounts, accounts.review-admin-groups]
   - id: ES-21
     title: The network stack ignores what it should
     title_ko: 네트워크 스택이 무시해야 할 것을 무시함
     severity: medium
+    area: services
     checks: [sysctl.syncookies, sysctl.rp-filter, sysctl.icmp-redirects, sysctl.source-routing, sysctl.icmp-broadcast]
   - id: ES-22
     title: The kernel limits what unprivileged code can see and do
     title_ko: 커널이 권한 없는 코드가 보고 할 수 있는 것을 제한함
     severity: medium
+    area: services
     checks: [sysctl.aslr, sysctl.kptr-restrict, sysctl.dmesg-restrict, sysctl.suid-dumpable, sysctl.ptrace-scope, sysctl.protected-links]
   - id: ES-23
     title: A host firewall is enabled
     title_ko: 호스트 방화벽이 켜져 있음
     severity: medium
+    area: services
     checks: [firewall.enabled, firewall.review-rules]
   - id: ES-24
     title: Security updates are installed automatically
     title_ko: 보안 업데이트가 자동으로 설치됨
     severity: medium
+    area: patches
     checks: [updates.security-automatic]
   - id: ES-25
     title: Mandatory access control is on
     title_ko: 강제 접근 제어가 켜져 있음
     severity: medium
+    area: files
     checks: [mac.enabled]
   - id: ES-26
     title: No account has an empty password
     title_ko: 비밀번호가 비어 있는 계정이 없음
     severity: high
+    area: accounts
     checks: [accounts.no-empty-passwords]
   - id: ES-27
     title: Printing and network discovery are off unless needed
     title_ko: 필요하지 않으면 인쇄와 네트워크 검색이 꺼져 있음
     severity: medium
+    area: services
     checks: [services.no-print-discovery]
   - id: ES-28
     title: SSH offers no broken ciphers, MACs or key exchanges
     title_ko: SSH가 깨진 암호, MAC, 키 교환 알고리즘을 제공하지 않음
     severity: medium
+    area: services
     checks: [ssh.weak-algorithms]
   - id: ES-29
     title: SSH logs who logs in
     title_ko: SSH가 누가 로그인하는지 기록함
     severity: medium
+    area: services
     checks: [ssh.log-level]

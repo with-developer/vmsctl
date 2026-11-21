@@ -42,6 +42,14 @@ func TestBuiltinContent(t *testing.T) {
 			t.Errorf("check %s is not mapped to any profile control", id)
 		}
 	}
+	// Every built-in control is in an area, so that the dashboard groups none of them under "other".
+	for _, p := range content.Profiles {
+		for _, c := range p.Controls {
+			if c.Area == "" {
+				t.Errorf("%s %s has no area", p.ID, c.ID)
+			}
+		}
+	}
 	for id := range awaitingProfile {
 		switch {
 		case content.Checks[id] == nil:

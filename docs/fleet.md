@@ -15,7 +15,7 @@ has the API only and says so at `/`. Sign in with a read token (`vmsctl server t
 api`): the dashboard shows the fleet overview (pass rate, the pass rate over time for 7, 30 or 90 days, hosts with a failing control, hosts that
 stopped reporting, what to fix first with what each fix adds to the pass rate, and what just got worse, was fixed or went silent), the host list (search, filters,
 sorting, CSV export, and for each host its operating system, labels, a trend line of its latest scans and whether
-its agent is connected), a list of controls (and for each one what it checks, why it matters, how to fix it and the hosts that fail it), a matrix of every control on every host, and for each host what got worse or was fixed since its previous scan (a click opens the control), its controls with the evidence of every check, its history and a
+its agent is connected), a list of controls (and for each one what it checks, why it matters, how to fix it and the hosts that fail it), a matrix of every control on every host, and for each host what got worse or was fixed since its previous scan (a click opens the control), its controls grouped by area (accounts, files, services, patches, logs) with the evidence of every check, its history and a
 comparison of any scan with the one before. It is available in English and Korean and follows the
 system's light or dark theme. Everything a host sent is shown as text. The filters of the host, control and
 image lists are in the address: a link shares a filtered list, and both the browser's back button and the back link of a

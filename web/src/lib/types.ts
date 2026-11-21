@@ -30,7 +30,7 @@ export interface HostSummary {
   trend?: number[];
 }
 export interface TrendPoint { at: string; hosts: number; failing: number; score: number | null; counts: Counts }
-export interface ControlRow { profile: string; id: string; title: string; titleKo?: string; severity: string; status: Status }
+export interface ControlRow { profile: string; id: string; title: string; titleKo?: string; severity: string; status: Status; area?: string }
 export interface ScanRow { id: number; receivedAt: string; startedAt: string; toolVersion: string; counts: Counts; score: number | null; signed: boolean; imageRef?: string; imageDigest?: string }
 export interface PackInfo { name: string; version: string; digest: string }
 export interface HostDetail extends HostSummary { profiles?: string[]; controls: ControlRow[]; scans: ScanRow[]; packs?: PackInfo[] }

@@ -246,47 +246,80 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
       {rows.length === 0 ? (
         <Empty>{t("host.empty")}</Empty>
       ) : (
-        <ul className="controls">
-          {rows.map((c) => {
-            const key = `${c.profile}/${c.id}`;
-            const expanded = open === key;
-            return (
-              <li key={key} id={`control-${key}`} className={expanded ? "open" : ""}>
-                <div
-                  className="control-row"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expanded}
-                  onClick={() => toggleOpen(key)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault(); // Space must not scroll the page
-                      toggleOpen(key);
-                    }
-                  }}
-                >
-                  <IconChevron open={expanded} />
-                  <span className="mono id">{c.id}</span>
-                  <span className="control-title">
-                    {worse.has(key) && <span className="kind kind-regressed">{t("change.regressed")}</span>} {ctitle(c, lang)}
+        <div className="areas">
+          {groupByArea(rows).map((g) => (
+            <section key={g.area} aria-labelledby={g.area ? `area-${g.area}` : undefined}>
+              {g.area !== "" && (
+                <h3 className="area-head" id={`area-${g.area}`}>
+                  {t(`area.${g.area}`)}{" "}
+                  <span className="muted small">
+                    {(["FAIL", "ERROR", "MANUAL"] as Status[])
+                      .map((st) => [st, g.rows.filter((c) => c.status === st).length] as const)
+                      .filter(([, n]) => n > 0)
+                      .map(([st, n]) => `${t(`status.${st}`)} ${n}`)
+                      .join(" · ")}
                   </span>
-                  <Severity value={c.severity} />
-                  <StatusBadge status={c.status} />
-                </div>
-                {expanded && (
-                  <div className="control-body">
-                    {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
-                    {doc.error && <p className="error-text">{doc.error.message}</p>}
-                    {doc.data && <ControlDetail control={c} doc={doc.data} />}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                </h3>
+              )}
+              <ul className="controls">
+                {g.rows.map((c) => {
+                  const key = `${c.profile}/${c.id}`;
+                  const expanded = open === key;
+                  return (
+                    <li key={key} id={`control-${key}`} className={expanded ? "open" : ""}>
+                      <div
+                        className="control-row"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
+                        onClick={() => toggleOpen(key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault(); // Space must not scroll the page
+                            toggleOpen(key);
+                          }
+                        }}
+                      >
+                        <IconChevron open={expanded} />
+                        <span className="mono id">{c.id}</span>
+                        <span className="control-title">
+                          {worse.has(key) && <span className="kind kind-regressed">{t("change.regressed")}</span>} {ctitle(c, lang)}
+                        </span>
+                        <Severity value={c.severity} />
+                        <StatusBadge status={c.status} />
+                      </div>
+                      {expanded && (
+                        <div className="control-body">
+                          {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
+                          {doc.error && <p className="error-text">{doc.error.message}</p>}
+                          {doc.data && <ControlDetail control={c} doc={doc.data} />}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </section>
   );
+}
+
+/**
+ * The rows in the areas of their profile (accounts, files, services, patches, logs), each area in the list's order. Rows of a profile
+ * without areas (a policy pack's) come last, as "other"; with no area at all there is one group and no heading.
+ */
+function groupByArea(rows: ControlRow[]): { area: string; rows: ControlRow[] }[] {
+  if (!rows.some((c) => c.area)) return [{ area: "", rows }];
+  const order = ["accounts", "files", "services", "patches", "logs"];
+  const groups = new Map<string, ControlRow[]>();
+  for (const c of rows) {
+    const a = c.area && order.includes(c.area) ? c.area : "other";
+    groups.set(a, [...(groups.get(a) ?? []), c]);
+  }
+  return [...order, "other"].filter((a) => groups.has(a)).map((a) => ({ area: a, rows: groups.get(a) ?? [] }));
 }
 
 /** The checks of a control and what they observed. All of it is host text: shown as text only. */
