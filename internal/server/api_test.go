@@ -1083,3 +1083,37 @@ func TestHostControlsArea(t *testing.T) {
 		t.Fatalf("no known control in %+v", d.Controls)
 	}
 }
+
+// The trend says what moved the line: the controls that got worse or were fixed in the scans of each day.
+func TestTrendChanges(t *testing.T) {
+	f := newAPIFixture(t)
+	var tr struct {
+		Points []TrendPoint `json:"points"`
+	}
+	f.json(t, "/api/v1/trend?days=3", &tr)
+	worse, fixed := 0, 0
+	for _, p := range tr.Points {
+		worse += p.Worse
+		fixed += p.Fixed
+	}
+	if worse == 0 || fixed != 0 {
+		t.Fatalf("before the fix: worse %d, fixed %d in %+v", worse, fixed, tr.Points)
+	}
+	before := tr.Points[len(tr.Points)-1].Worse
+	// A fix, and a failing control the previous scan did not have (a new rule): one fix, nothing worse.
+	f.rescan(t, "web-01.json", "web-01-fixed", func(cs []any) []any {
+		cs = setStatus(cs, map[string]string{"U-01": "PASS"})
+		return append(cs, map[string]any{"profile": "kisa-2026", "id": "X-9", "title": "X-9", "severity": "high", "status": "FAIL", "checks": []string{}})
+	})
+	f.json(t, "/api/v1/trend?days=3", &tr)
+	if last := tr.Points[len(tr.Points)-1]; last.Fixed != 1 || last.Worse != before {
+		t.Errorf("the last day = %+v, want one fix and nothing more worse than %d", last, before)
+	}
+	// Another profile counts nothing of this one.
+	f.json(t, "/api/v1/trend?days=3&profile=essentials", &tr)
+	for _, p := range tr.Points {
+		if p.Worse != 0 || p.Fixed != 0 {
+			t.Errorf("essentials: %+v", p)
+		}
+	}
+}

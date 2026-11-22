@@ -309,6 +309,10 @@ table.matrix .cell:hover { outline: 2px solid var(--text); outline-offset: 0; }
 .trend-area { fill: color-mix(in srgb, var(--accent) 13%, transparent); }
 .trend-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
 .trend-guide { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.trend-mark-worse { fill: var(--fail); }
+.trend-mark-fixed { fill: var(--pass); }
+.trend-legend { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin: .3rem 0 0; }
+.trend-legend svg { flex: none; }
 .trend-tip { position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgb(0 0 0 / 14%); padding: .4rem .65rem; white-space: nowrap; z-index: 2; }
 .titlebar { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
 .titlebar h2 { margin-bottom: .15rem; }

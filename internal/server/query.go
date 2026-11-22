@@ -972,6 +972,12 @@ type TrendPoint struct {
 	Failing int      `json:"failing"` // hosts with a FAIL control
 	Score   *float64 `json:"score"`
 	Counts  Counts   `json:"counts"`
+	// Worse and Fixed count the controls that got worse (FAIL or ERROR now, neither in the previous scan) or were fixed (FAIL before,
+	// PASS or NOT_APPLICABLE now) in the scans received since the point before, each against the previous scan of its host. A control
+	// the previous scan did not have (a new rule, another profile) is neither, as for the webhook. Every change counts, so a control
+	// that flips back and forth in a day counts both ways.
+	Worse int `json:"worse"`
+	Fixed int `json:"fixed"`
 }
 
 // maxTrendDays is the longest trend the API gives.
@@ -985,8 +991,10 @@ func (s *Store) Trend(ctx context.Context, days int, profile string) ([]TrendPoi
 	days = max(1, min(days, maxTrendDays))
 	now := s.now().UTC()
 	points := make([]TrendPoint, 0, days)
+	ends := make([]time.Time, 0, days)
 	for i := days - 1; i >= 0; i-- {
 		at := now.Add(-time.Duration(i) * 24 * time.Hour)
+		ends = append(ends, at)
 		p := TrendPoint{At: at.Format(time.RFC3339), Counts: Counts{}}
 		rs, err := s.db.QueryContext(ctx, `
 			SELECT s.id, c.status, COUNT(*)
@@ -1022,5 +1030,47 @@ func (s *Store) Trend(ctx context.Context, days int, profile string) ([]TrendPoi
 		p.Score = p.Counts.Score()
 		points = append(points, p)
 	}
+	if err := s.trendChanges(ctx, points, ends, now.Add(-time.Duration(days)*24*time.Hour), profile); err != nil {
+		return nil, err
+	}
 	return points, nil
+}
+
+// trendChanges adds to each point (ending at ends[i]) the controls that got worse or were fixed in the scans received after the point
+// before it (after from, for the first point), each scan compared with the previous scan of its host.
+func (s *Store) trendChanges(ctx context.Context, points []TrendPoint, ends []time.Time, from time.Time, profile string) error {
+	// The previous scan of each host's scan, numbered over the hosts' scans once; only the window's scans are compared.
+	rows, err := s.db.QueryContext(ctx, `
+		WITH paired AS (
+		  SELECT s.id AS id, s.received_at AS received_at, LAG(s.id) OVER (PARTITION BY s.host_row ORDER BY s.received_at, s.id) AS prev
+		  FROM scans s JOIN hosts k ON k.id = s.host_row AND k.kind = 'host'
+		)
+		SELECT l.received_at,
+		  SUM(CASE WHEN c.status IN ('FAIL', 'ERROR') AND p.status NOT IN ('FAIL', 'ERROR') THEN 1 ELSE 0 END),
+		  SUM(CASE WHEN c.status IN ('PASS', 'NOT_APPLICABLE') AND p.status = 'FAIL' THEN 1 ELSE 0 END)
+		FROM paired l
+		JOIN scan_controls c ON c.scan_row = l.id
+		JOIN scan_controls p ON p.scan_row = l.prev AND p.profile = c.profile AND p.control_id = c.control_id
+		WHERE l.prev IS NOT NULL AND l.received_at > ? AND (? = '' OR c.profile = ?)
+		GROUP BY l.id`, from.UTC().Format(stampLayout), profile, profile)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	stamps := make([]string, len(ends)) // a point counts what was received up to its moment, as its score does
+	for i, at := range ends {
+		stamps[i] = at.UTC().Format(stampLayout)
+	}
+	for rows.Next() {
+		var received string
+		var worse, fixed int
+		if err := rows.Scan(&received, &worse, &fixed); err != nil {
+			return err
+		}
+		if i := sort.SearchStrings(stamps, received); i < len(points) {
+			points[i].Worse += worse
+			points[i].Fixed += fixed
+		}
+	}
+	return rows.Err()
 }
