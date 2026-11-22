@@ -266,7 +266,7 @@ function TrendCard() {
       ) : (
         <TrendChart
           label={t("overview.trend")}
-          points={points.map((p) => ({ at: p.at, score: p.score, detail: p.hosts === 0 ? "" : t("trend.detail", { hosts: p.hosts, failing: p.failing }) }))}
+          points={points.map((p) => ({ at: p.at, score: p.score, detail: p.hosts === 0 ? "" : t("trend.detail", { hosts: p.hosts, failing: p.failing }), worse: p.worse, fixed: p.fixed }))}
         />
       )}
     </section>

@@ -1083,3 +1083,25 @@ func TestHostControlsArea(t *testing.T) {
 		t.Fatalf("no known control in %+v", d.Controls)
 	}
 }
+
+// The trend says what moved the line: the controls that got worse or were fixed in the scans of each day.
+func TestTrendChanges(t *testing.T) {
+	f := newAPIFixture(t)
+	var tr struct {
+		Points []TrendPoint `json:"points"`
+	}
+	f.json(t, "/api/v1/trend?days=3", &tr)
+	worse, fixed := 0, 0
+	for _, p := range tr.Points {
+		worse += p.Worse
+		fixed += p.Fixed
+	}
+	if worse == 0 || fixed != 0 {
+		t.Fatalf("before the fix: worse %d, fixed %d in %+v", worse, fixed, tr.Points)
+	}
+	f.rescan(t, "web-01.json", "web-01-fixed", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS"}) })
+	f.json(t, "/api/v1/trend?days=3", &tr)
+	if last := tr.Points[len(tr.Points)-1]; last.Fixed != 1 {
+		t.Errorf("the last day = %+v, want one fix", last)
+	}
+}
