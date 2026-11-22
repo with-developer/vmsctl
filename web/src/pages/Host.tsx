@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { type Async, useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
-import { ago, compareControls, ctitle, localized } from "../lib/format";
+import { AREAS, ago, compareControls, ctitle, localized } from "../lib/format";
 import { lastListAddress } from "../lib/listAddress";
 import { Avatar, Await, Empty, Gauge, Inline, ScorePill, Severity, SignedBadge, StatusBadge, StatusBar } from "../components/ui";
 import { TrendChart } from "../components/charts";
@@ -306,7 +306,6 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
   );
 }
 
-const AREAS = ["accounts", "files", "services", "patches", "logs"]; // the order of the profiles' areas (internal/engine)
 
 type AreaGroup = { key: string; profile: string; area: string; rows: ControlRow[]; counts: Partial<Record<Status, number>> };
 
@@ -335,7 +334,7 @@ function groupByArea(rows: ControlRow[], all: ControlRow[]): AreaGroup[] {
 }
 
 /** The checks of a control and what they observed. All of it is host text: shown as text only. */
-function ControlDetail({ control, doc }: { control: ControlRow; doc: ScanDoc }) {
+export function ControlDetail({ control, doc }: { control: Pick<ControlRow, "profile" | "id">; doc: ScanDoc }) {
   const { t, lang } = useI18n();
   const dc = doc.controls.find((x) => x.profile === control.profile && x.id === control.id);
   const checks = (dc?.checks ?? []).map((ref) => doc.checks.find((c) => c.ref === ref)).filter((c) => c !== undefined);

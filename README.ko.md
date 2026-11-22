@@ -1,4 +1,4 @@
-<!-- translated from README.md @ 4489718 -->
+<!-- translated from README.md @ f9b8a8e -->
 # vmsctl
 
 [![CI](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml/badge.svg)](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml)
@@ -241,9 +241,9 @@ ICMP 리다이렉트, 역방향 경로 필터링, SYN 쿠키 등), 호스트 방
 |---|---|
 | ![호스트](docs/demo/dashboard-host.png) | ![매트릭스](docs/demo/dashboard-matrix.png) |
 
-| CI가 보낸 이미지: 이미지마다 이력 하나, 빌드마다 태그 하나 |
-|---|
-| ![이미지 목록](docs/demo/dashboard-images.png) |
+| 조치: 실패한 점검 항목을 고칠 순서대로, 고치는 방법과 고칠 호스트까지 | CI가 보낸 이미지: 이미지마다 이력 하나, 빌드마다 태그 하나 |
+|---|---|
+| ![조치 화면](docs/demo/dashboard-fix.png) | ![이미지 목록](docs/demo/dashboard-images.png) |
 
 동작 방식, API, 서명, 알림, 에이전트는 [docs/fleet.ko.md](docs/fleet.ko.md)에 있습니다.
 

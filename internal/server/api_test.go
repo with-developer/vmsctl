@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1041,6 +1042,16 @@ func TestOverviewFixFirstOrder(t *testing.T) {
 	if at["U-08"] >= at["X-1"] || at["X-1"] >= at["X-2"] {
 		t.Errorf("order = %+v", o.TopFailing)
 	}
+	// The control list, which the remediation page orders the same way, takes the highest severity too.
+	var cl struct {
+		Controls []ControlSummary `json:"controls"`
+	}
+	f.json(t, "/api/v1/controls", &cl)
+	for _, c := range cl.Controls {
+		if c.ID == "X-3" && c.Severity != "high" {
+			t.Errorf("X-3 in the control list: %+v", c)
+		}
+	}
 }
 
 // A host's controls carry the area and the Korean title of the built-in profile.
@@ -1115,5 +1126,49 @@ func TestTrendChanges(t *testing.T) {
 		if p.Worse != 0 || p.Fixed != 0 {
 			t.Errorf("essentials: %+v", p)
 		}
+	}
+}
+
+// A host that fails a control says since when: the first scan of the run of failing scans, which a passing scan ends.
+func TestControlFailingSince(t *testing.T) {
+	f := newAPIFixture(t)
+	get := func() ControlHost {
+		t.Helper()
+		var d struct {
+			Control ControlDetail `json:"control"`
+		}
+		f.json(t, "/api/v1/controls/kisa-2026/U-01", &d)
+		for _, h := range d.Control.Hosts {
+			if h.Host == "web-01" {
+				return h
+			}
+		}
+		t.Fatalf("no web-01 in %+v", d.Control.Hosts)
+		return ControlHost{}
+	}
+	first := get()
+	if first.Status != "FAIL" || first.FailingSince == "" || first.ScanID == 0 {
+		t.Fatalf("web-01 = %+v", first)
+	}
+	f.rescan(t, "web-01.json", "web-01-again", func(cs []any) []any { return cs })
+	if h := get(); h.FailingSince != first.FailingSince || h.ScanID == first.ScanID {
+		t.Errorf("still failing: %+v, want since %s and a newer scan", h, first.FailingSince)
+	}
+	// A scan without the control (another profile, a rule taken out) does not end the run.
+	f.rescan(t, "web-01.json", "web-01-without", func(cs []any) []any {
+		return slices.DeleteFunc(cs, func(c any) bool { return c.(map[string]any)["id"] == "U-01" })
+	})
+	f.rescan(t, "web-01.json", "web-01-back", func(cs []any) []any { return cs })
+	if h := get(); h.FailingSince != first.FailingSince {
+		t.Errorf("after a scan without the control: since %s, want %s", h.FailingSince, first.FailingSince)
+	}
+	f.rescan(t, "web-01.json", "web-01-pass", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS"}) })
+	if h := get(); h.Status != "PASS" || h.FailingSince != "" {
+		t.Errorf("passing: %+v", h)
+	}
+	f.rescan(t, "web-01.json", "web-01-fail", func(cs []any) []any { return cs })
+	want := f.clock.UTC().Format(stampLayout)
+	if h := get(); h.FailingSince != want {
+		t.Errorf("failing again: since %s, want %s (the last scan)", h.FailingSince, want)
 	}
 }

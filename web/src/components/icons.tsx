@@ -29,6 +29,12 @@ export const IconGrid = () => (
     <path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z" />
   </Icon>
 );
+export const IconWrench = () => (
+  <Icon>
+    <path d="M14.5 5.5a4 4 0 0 0 4.9 4.9l-8.6 8.6a2.1 2.1 0 0 1-3-3l8.6-8.6" />
+    <path d="M14.5 5.5l2-2a4 4 0 0 1 4 4l-2 2" />
+  </Icon>
+);
 export const IconList = () => (
   <Icon>
     <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />

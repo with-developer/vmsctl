@@ -569,7 +569,9 @@ func (s *Server) handleControls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range list {
-		list[i].TitleKo = s.titleKo(list[i].Profile, list[i].ID)
+		if c := s.builtinControl(list[i].Profile, list[i].ID); c != nil {
+			list[i].TitleKo, list[i].Area = c.TitleKo, c.Area
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"controls": list})
 }
@@ -641,7 +643,9 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.fail(w, err)
 	default:
-		d.TitleKo = s.titleKo(profile, id)
+		if c := s.builtinControl(profile, id); c != nil {
+			d.TitleKo, d.Area = c.TitleKo, c.Area
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"control": d, "info": s.controlInfo(profile, id)})
 	}
 }

@@ -149,6 +149,7 @@ kisa-2026: 67 controls — <span class="f">7 FAIL</span>, <span class="m">10 MAN
       <button role="tab" id="t3" aria-controls="p3" aria-selected="false" type="button">A host</button>
       <button role="tab" id="t4" aria-controls="p4" aria-selected="false" type="button">Matrix</button>
       <button role="tab" id="t5" aria-controls="p5" aria-selected="false" type="button">Images</button>
+      <button role="tab" id="t6" aria-controls="p6" aria-selected="false" type="button">Fix</button>
     </div>
     <div class="stage" style="margin-top:0">
       <div class="panel" id="p2" role="tabpanel" aria-labelledby="t2">
@@ -166,6 +167,10 @@ kisa-2026: 67 controls — <span class="f">7 FAIL</span>, <span class="m">10 MAN
       <div class="panel" id="p5" role="tabpanel" aria-labelledby="t5" hidden>
         <div class="frame"><img src="img/dashboard-images.png" width="1280" height="800" alt="Container images scanned in CI, one history for each" loading="lazy"></div>
         <p class="cap">Container images your CI scans, with one history for each image.</p>
+      </div>
+      <div class="panel" id="p6" role="tabpanel" aria-labelledby="t6" hidden>
+        <div class="frame"><img src="img/dashboard-fix.png" width="1280" height="800" alt="The remediation page: the failing controls in the order to fix them, how to fix the chosen one and the hosts that fail it" loading="lazy"></div>
+        <p class="cap">The failing controls in the order to fix them; for each, how to fix it and the hosts to fix it on, with how long each has failed and its evidence.</p>
       </div>
     </div>
 

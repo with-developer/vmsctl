@@ -761,12 +761,16 @@ type ControlSummary struct {
 	TitleKo  string `json:"titleKo,omitempty"`
 	Severity string `json:"severity"`
 	Counts   Counts `json:"counts"`
+	Area     string `json:"area,omitempty"` // from the built-in profile (engine areas); empty for a pack's
 }
 
 // Controls lists every control with the status counts of the latest scans.
 func (s *Store) Controls(ctx context.Context, profile string) ([]ControlSummary, error) {
 	rs, err := s.db.QueryContext(ctx, `
-		SELECT c.profile, c.control_id, MAX(c.title), MAX(c.severity), c.status, COUNT(*)
+		SELECT c.profile, c.control_id, MAX(c.title),
+		  CASE MAX(CASE c.severity WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END)
+		    WHEN 3 THEN 'high' WHEN 2 THEN 'medium' WHEN 1 THEN 'low' ELSE MAX(c.severity) END,
+		  c.status, COUNT(*)
 		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row
 		WHERE ? = '' OR c.profile = ?
 		GROUP BY c.profile, c.control_id, c.status`, profile, profile)
@@ -793,6 +797,9 @@ func (s *Store) Controls(ctx context.Context, profile string) ([]ControlSummary,
 			order = append(order, k)
 		}
 		cur.Counts[status] = n
+		if severityWeight(c.Severity) > severityWeight(cur.Severity) { // hosts that report it differently: the highest counts
+			cur.Severity = c.Severity
+		}
 	}
 	if err := rs.Err(); err != nil {
 		return nil, err
@@ -817,6 +824,10 @@ type ControlHost struct {
 	Host   string `json:"host"`
 	Status string `json:"status"`
 	Stale  bool   `json:"stale"`
+	ScanID int64  `json:"scanId"` // the host's latest scan, whose evidence says why
+	// FailingSince is, for a host that fails the control, when the run of scans that fail it began: the first of them, as far back
+	// as the stored scans go.
+	FailingSince string `json:"failingSince,omitempty"`
 }
 
 // ControlDetail is one control: the hosts, worst status first.
@@ -836,7 +847,7 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 		stale[h.ID] = h.Stale
 	}
 	rs, err := s.db.QueryContext(ctx, `
-		SELECT h.id, h.name, c.title, c.severity, c.status
+		SELECT h.id, h.name, l.id, c.title, c.severity, c.status
 		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row JOIN hosts h ON h.id = l.host_row
 		WHERE c.profile = ? AND c.control_id = ? ORDER BY h.name`, profile, id)
 	if err != nil {
@@ -847,7 +858,7 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 	for rs.Next() {
 		var h ControlHost
 		var title, sev string
-		if err := rs.Scan(&h.HostID, &h.Host, &title, &sev, &h.Status); err != nil {
+		if err := rs.Scan(&h.HostID, &h.Host, &h.ScanID, &title, &sev, &h.Status); err != nil {
 			return nil, err
 		}
 		h.Stale = stale[h.HostID]
@@ -861,12 +872,69 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 	if len(d.Hosts) == 0 {
 		return nil, ErrNotFound
 	}
+	_ = rs.Close()
+	since, err := s.failingSince(ctx, profile, id)
+	if err != nil {
+		return nil, err
+	}
+	for i := range d.Hosts {
+		if d.Hosts[i].Status == "FAIL" {
+			d.Hosts[i].FailingSince = since[d.Hosts[i].HostID]
+		}
+	}
 	rank := map[string]int{}
 	for i, st := range statusOrder {
 		rank[st] = i
 	}
 	sort.SliceStable(d.Hosts, func(i, j int) bool { return rank[d.Hosts[i].Status] < rank[d.Hosts[j].Status] })
 	return d, nil
+}
+
+// severityWeight orders severities: high 3, medium 2, low 1, anything else 0.
+func severityWeight(s string) int {
+	switch s {
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	}
+	return 0
+}
+
+// failingSince is, for each host, the first scan of the run that fails the control up to now: the first FAIL after the last scan in
+// which the control was anything else (scans in the order of received_at, then id, as everywhere). A scan without the control does
+// not end the run. Each host's scans with the control are read once.
+func (s *Store) failingSince(ctx context.Context, profile, id string) (map[int64]string, error) {
+	rs, err := s.db.QueryContext(ctx, `
+		WITH runs AS (
+		  SELECT s.id AS id, s.host_row AS host_row, s.received_at AS received_at, c.status AS status
+		  FROM scans s JOIN scan_controls c ON c.scan_row = s.id AND c.profile = ? AND c.control_id = ?
+		), last_other AS (
+		  SELECT host_row, received_at, id FROM (
+		    SELECT host_row, received_at, id, ROW_NUMBER() OVER (PARTITION BY host_row ORDER BY received_at DESC, id DESC) AS rn
+		    FROM runs WHERE status != 'FAIL'
+		  ) WHERE rn = 1
+		)
+		SELECT r.host_row, MIN(r.received_at)
+		FROM runs r LEFT JOIN last_other o ON o.host_row = r.host_row
+		WHERE r.status = 'FAIL' AND (o.host_row IS NULL OR r.received_at > o.received_at OR (r.received_at = o.received_at AND r.id > o.id))
+		GROUP BY r.host_row`, profile, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := map[int64]string{}
+	for rs.Next() {
+		var host int64
+		var at string
+		if err := rs.Scan(&host, &at); err != nil {
+			return nil, err
+		}
+		out[host] = at
+	}
+	return out, rs.Err()
 }
 
 // ProfileUse is a profile that the latest scans have controls of, and how many hosts that is.

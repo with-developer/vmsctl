@@ -409,3 +409,25 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 .tag-shown { background: var(--accent-soft); color: var(--accent); }
 .tag-partial { margin-left: .4rem; border: 1px solid var(--border); color: var(--text); background: var(--surface-2); }
 .standard .pill { justify-self: start; }
+/* The remediation page: the queue on the left, the chosen control on the right */
+.workbench { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.queue { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); display: flex; flex-direction: column; }
+.queue-filters { display: grid; gap: .5rem; padding: .8rem; border-bottom: 1px solid var(--border); }
+.workbench-main .fixhosts-head { margin: 0; padding: .9rem 1.1rem .5rem; font-size: .95rem; }
+.queue-filters .search { width: 100%; }
+.queue-selects { display: flex; gap: .5rem; flex-wrap: wrap; }
+.queue-selects select { flex: 1 1 8rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: .85rem; }
+.queue-list { list-style: none; margin: 0; padding: .3rem; overflow-y: auto; }
+.queue-list a { display: grid; gap: .15rem; padding: .55rem .7rem; border-radius: 8px; color: inherit; text-decoration: none; }
+.queue-list a:hover { background: var(--surface-2); }
+.queue-list a.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.queue-title { overflow-wrap: anywhere; }
+.workbench-main h3 { margin: 1rem 0 .4rem; font-size: .95rem; }
+.fixhosts { list-style: none; margin: 0; padding: 0; }
+.fixhosts > li { border-top: 1px solid var(--border); }
+.fixhost-row { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; padding: .6rem 1.1rem; }
+.fixhost-row .push { display: inline-flex; gap: .5rem; align-items: center; margin-left: auto; }
+@media (max-width: 900px) {
+  .workbench { grid-template-columns: minmax(0, 1fr); }
+  .queue { position: static; max-height: 22rem; }
+}

@@ -25,6 +25,9 @@ export function total(c: Counts): number {
 
 export const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
+/** The areas of the built-in profiles' controls, in their order (internal/engine). */
+export const AREAS = ["accounts", "files", "services", "patches", "logs"];
+
 /** Controls in the order a reader wants them: failing first, then by severity, then by ID. */
 const STATUS_RANK: Record<Status, number> = { FAIL: 0, ERROR: 1, MANUAL: 2, WAIVED: 3, PASS: 4, NOT_APPLICABLE: 5 };
 export function compareControls(a: { status: Status; severity: string; id: string }, b: { status: Status; severity: string; id: string }): number {
