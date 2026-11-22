@@ -872,7 +872,22 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 // ProfileUse is a profile that the latest scans have controls of, and how many hosts that is.
 type ProfileUse struct {
 	ID    string `json:"id"`
-	Hosts int    `json:"hosts"`
+	Hosts int    `json:"hosts"` // hosts and images, for the choice of the default
+	// Fleet is the profile on the hosts (not the images) as the overview counts them; nil when only images use it.
+	Fleet *ProfileFleet `json:"fleet,omitempty"`
+	// From the built-in profile (empty for a pack's): its titles, how many controls it maps, and how many the standard has.
+	Title            string `json:"title,omitempty"`
+	TitleKo          string `json:"titleKo,omitempty"`
+	Controls         int    `json:"controls,omitempty"`
+	StandardControls int    `json:"standardControls,omitempty"`
+}
+
+// ProfileFleet is one profile across the latest scans of the hosts.
+type ProfileFleet struct {
+	Hosts   int      `json:"hosts"`
+	Failing int      `json:"failing"` // hosts with a FAIL control of the profile
+	Counts  Counts   `json:"counts"`
+	Score   *float64 `json:"score"`
 }
 
 // Profiles lists the profiles of the latest scans, the one most hosts use first (then by name).
@@ -893,7 +908,72 @@ func (s *Store) Profiles(ctx context.Context) ([]ProfileUse, error) {
 		}
 		out = append(out, u)
 	}
-	return out, rs.Err()
+	if err := rs.Err(); err != nil {
+		return nil, err
+	}
+	_ = rs.Close()
+	fleet, err := s.profileFleets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Fleet = fleet[out[i].ID]
+	}
+	return out, nil
+}
+
+// profileFleets counts each profile over the latest scans of the hosts.
+func (s *Store) profileFleets(ctx context.Context) (map[string]*ProfileFleet, error) {
+	rs, err := s.db.QueryContext(ctx, `
+		SELECT c.profile, c.status, COUNT(*), COUNT(DISTINCT l.host_row)
+		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row
+		GROUP BY c.profile, c.status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := map[string]*ProfileFleet{}
+	for rs.Next() {
+		var profile, status string
+		var n, hosts int
+		if err := rs.Scan(&profile, &status, &n, &hosts); err != nil {
+			return nil, err
+		}
+		f := out[profile]
+		if f == nil {
+			f = &ProfileFleet{Counts: Counts{}}
+			out[profile] = f
+		}
+		f.Counts[status] += n
+		if status == "FAIL" {
+			f.Failing = hosts
+		}
+	}
+	if err := rs.Err(); err != nil {
+		return nil, err
+	}
+	_ = rs.Close()
+	hosts, err := s.db.QueryContext(ctx, `
+		SELECT c.profile, COUNT(DISTINCT l.host_row)
+		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row GROUP BY c.profile`)
+	if err != nil {
+		return nil, err
+	}
+	defer hosts.Close()
+	for hosts.Next() {
+		var profile string
+		var n int
+		if err := hosts.Scan(&profile, &n); err != nil {
+			return nil, err
+		}
+		if f := out[profile]; f != nil {
+			f.Hosts = n
+		}
+	}
+	for _, f := range out {
+		f.Score = f.Counts.Score()
+	}
+	return out, hosts.Err()
 }
 
 // TrendPoint is the fleet at one moment: each host's latest scan until then, counted.

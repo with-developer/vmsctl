@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -43,16 +44,34 @@ var demoFleet = []demoHost{
 	{"db-02", "AlmaLinux 9", "rhel", 0.08, 0.04, 1, 0, false, true},
 	{"cache-01", "Amazon Linux 2023", "rhel", 0.35, 0.0, 2, 0, false, false},
 	{"batch-01", "CentOS 7", "rhel", 0.55, 0.0, 3, 9, false, false}, // stopped reporting
-	{"bastion-01", "Ubuntu 24.04", "debian", 0.15, 0.0, 1, 0, true, false},
+	{"bastion-01", "Ubuntu 22.04", "debian", 0.15, 0.0, 1, 0, true, false},
 }
 
 // SeedDemo fills the store with generated scans of a made-up fleet: fourteen days of history
 // for twelve hosts, built from the real controls and checks of the profile. Nothing is scanned.
+// The profile is on every host and image; so that the dashboard has several standards to show, each
+// other built-in profile is on some hosts too: one made for an operating system on the hosts of that
+// system, any other on the web and API servers.
 // It returns how many results it stored.
 func SeedDemo(ctx context.Context, store *Store, content *engine.Content, profileID string, now time.Time) (int, error) {
 	profile := content.Profiles[profileID]
 	if profile == nil {
 		return 0, fmt.Errorf("no profile %q", profileID)
+	}
+	others := make([]*engine.Profile, 0, len(content.Profiles))
+	for _, id := range slices.Sorted(maps.Keys(content.Profiles)) {
+		if id != profileID {
+			others = append(others, content.Profiles[id])
+		}
+	}
+	profilesOf := func(h demoHost) []*engine.Profile {
+		list := []*engine.Profile{profile}
+		for _, p := range others {
+			if len(p.OS) > 0 && slices.Contains(p.OS, demoOSName(h.os)) || len(p.OS) == 0 && (strings.HasPrefix(h.name, "web-") || strings.HasPrefix(h.name, "api-")) {
+				list = append(list, p)
+			}
+		}
+		return list
 	}
 	token, id, err := store.CreateCredential(ctx, ScopeIngest, "demo", "", 0)
 	if err != nil {
@@ -72,7 +91,7 @@ func SeedDemo(ctx context.Context, store *Store, content *engine.Content, profil
 			}
 			at := now.Add(-time.Duration(d)*24*time.Hour - time.Duration(len(h.name))*7*time.Minute)
 			store.now = func() time.Time { return at.Add(3 * time.Minute) }
-			res := demoResult(content, profile, h, d, days, at)
+			res := demoResult(content, profilesOf(h), h, d, days, at)
 			raw, err := json.Marshal(res)
 			if err != nil {
 				return n, err
@@ -99,7 +118,7 @@ func SeedDemo(ctx context.Context, store *Store, content *engine.Content, profil
 			at := now.Add(-time.Duration(daysAgo)*24*time.Hour - time.Duration(len(img.name))*3*time.Minute)
 			store.now = func() time.Time { return at.Add(2 * time.Minute) }
 			tag := fmt.Sprintf("%s:1.%d", img.name, build)
-			res := demoResult(content, profile, demoHost{name: img.name, os: img.os, family: img.family, base: img.base, drift: img.drift, every: 1}, daysAgo, days, at)
+			res := demoResult(content, []*engine.Profile{profile}, demoHost{name: img.name, os: img.os, family: img.family, base: img.base, drift: img.drift, every: 1}, daysAgo, days, at)
 			res.Host.HostID, res.Host.Labels = "", nil
 			res.Scan.Target = engine.TargetInfo{Kind: "root", Root: "image:" + tag, Image: &engine.ImageInfo{Ref: tag, Digest: demoImageDigest(tag)}}
 			raw, err := json.Marshal(res)
@@ -142,7 +161,12 @@ func demoRand(parts ...string) float64 {
 	return rand.New(rand.NewPCG(h.Sum64(), 0x9e3779b97f4a7c15)).Float64() //nolint:gosec // generated demo data, not a secret
 }
 
-func demoResult(content *engine.Content, profile *engine.Profile, h demoHost, daysAgo, days int, at time.Time) *engine.Result {
+// demoOSName is a demo host's system as a profile's os names it: "Ubuntu 22.04" is ubuntu-22.04.
+func demoOSName(os string) string {
+	return strings.ReplaceAll(strings.ToLower(os), " ", "-")
+}
+
+func demoResult(content *engine.Content, profiles []*engine.Profile, h demoHost, daysAgo, days int, at time.Time) *engine.Result {
 	progress := float64(days-daysAgo) / float64(days) // 0 at the first scan, 1 at the last
 	failRate := h.base + h.drift*progress
 	if h.drift > 0 && daysAgo == 0 {
@@ -164,9 +188,27 @@ func demoResult(content *engine.Content, profile *engine.Profile, h demoHost, da
 			OS:   engine.OSInfo{ID: h.family, Family: h.family, Name: h.os, Supported: true},
 			Arch: "amd64", Labels: demoLabels(h.name),
 		},
-		Profiles: []engine.ProfileInfo{{ID: profile.ID, Revision: profile.Revision, Digest: digest, Title: profile.Title}},
+		Profiles: []engine.ProfileInfo{},
 		Summary:  map[string]engine.ProfileSummary{},
 	}
+	decided := map[string]engine.Status{} // a check has one result in a scan, whichever controls list it
+	for _, profile := range profiles {
+		res.Profiles = append(res.Profiles, engine.ProfileInfo{ID: profile.ID, Revision: profile.Revision, Digest: digest, Title: profile.Title})
+		demoControls(content, profile, h, failRate, digest, decided, res)
+	}
+	res.Collectors = []engine.CollectorRun{{Name: "demo", Version: 1, Access: engine.AccessFilesystem, Status: "ok", Complete: true}}
+	// Checks that controls (of one profile or of several) list twice must appear once.
+	seen := map[string]bool{}
+	res.Checks = slices.DeleteFunc(res.Checks, func(c engine.CheckResult) bool {
+		dup := seen[c.Ref]
+		seen[c.Ref] = true
+		return dup
+	})
+	return res
+}
+
+// demoControls adds the controls of one profile, and their checks, to a demo result.
+func demoControls(content *engine.Content, profile *engine.Profile, h demoHost, failRate float64, digest string, decided map[string]engine.Status, res *engine.Result) {
 	counts := map[engine.Status]int{}
 	for _, ctl := range profile.Controls {
 		cr := engine.ControlResult{Profile: profile.ID, ID: ctl.ID, Title: ctl.Title, TitleKo: ctl.TitleKo, Severity: ctl.Severity, Checks: []string{}}
@@ -183,7 +225,11 @@ func demoResult(content *engine.Content, profile *engine.Profile, h demoHost, da
 			if check == nil {
 				continue
 			}
-			st := demoCheckStatus(check, ctl.ID, mixed, h, failRate)
+			st, ok := decided[id]
+			if !ok {
+				st = demoCheckStatus(check, ctl.ID, mixed, h, failRate)
+				decided[id] = st
+			}
 			cr.Checks = append(cr.Checks, id)
 			cres := engine.CheckResult{
 				Ref: id, ID: id, Version: check.Version, Digest: digest, Title: check.Title, TitleKo: check.TitleKo, Severity: check.Severity,
@@ -211,15 +257,6 @@ func demoResult(content *engine.Content, profile *engine.Profile, h demoHost, da
 		res.Controls = append(res.Controls, cr)
 	}
 	res.Summary[profile.ID] = engine.ProfileSummary{Controls: counts}
-	res.Collectors = []engine.CollectorRun{{Name: "demo", Version: 1, Access: engine.AccessFilesystem, Status: "ok", Complete: true}}
-	// Checks a control lists twice (shared) must appear once.
-	seen := map[string]bool{}
-	res.Checks = slices.DeleteFunc(res.Checks, func(c engine.CheckResult) bool {
-		dup := seen[c.Ref]
-		seen[c.Ref] = true
-		return dup
-	})
-	return res
 }
 
 // demoSeed is a fixed 32-byte seed for a demo host's key, so the demo is the same every time.

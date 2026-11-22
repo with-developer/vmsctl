@@ -66,4 +66,6 @@ export interface ControlDetail extends ControlSummary { hosts: ControlHost[] }
 export interface MatrixControl { profile: string; id: string; title: string; titleKo?: string; severity: string }
 export interface MatrixHost { id: number; name: string; stale: boolean; statuses: string }
 export interface Matrix { controls: MatrixControl[]; hosts: MatrixHost[]; profile?: string; other?: number }
-export interface ProfileList { profiles: { id: string; hosts: number }[]; default: string; titles: Record<string, string> }
+export interface ProfileFleet { hosts: number; failing: number; counts: Counts; score: number | null }
+export interface ProfileUse { id: string; hosts: number; fleet?: ProfileFleet; title?: string; titleKo?: string; controls?: number; standardControls?: number }
+export interface ProfileList { profiles: ProfileUse[]; default: string; titles: Record<string, string> }

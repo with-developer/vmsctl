@@ -204,6 +204,9 @@ func plainText(c *Check, p *Profile) error {
 	}
 	if p != nil {
 		errs = append(errs, line("title", p.Title), line("title_ko", p.TitleKo))
+		if p.StandardControls != 0 {
+			errs = append(errs, errors.New("standard_controls is set only in built-in profiles")) // the dashboard reads it from those
+		}
 		for _, ctl := range p.Controls {
 			errs = append(errs, line("control id", ctl.ID), line("control "+ctl.ID+" title", ctl.Title), line("control "+ctl.ID+" title_ko", ctl.TitleKo), prose("control "+ctl.ID+" manual", ctl.Manual), prose("control "+ctl.ID+" manual_ko", ctl.ManualKo))
 			if ctl.Area != "" {

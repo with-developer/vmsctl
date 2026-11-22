@@ -95,6 +95,8 @@ types, so a misspelled field is an error.
 - Every control of a built-in profile has an `area` (`accounts`, `files`, `services`, `patches` or `logs`; for `kisa-2026`, the
   guide's own sections), which groups it on the dashboard's host page. It is for reading only: it is not in the profile digest and
   needs no new revision. A pack's profile cannot set it, since the server knows only the built-in profiles.
+- A built-in profile that maps only some of a standard's controls says how many the standard has (`standard_controls`), so that the
+  dashboard shows "65 of 188" and marks it partial. Like `area`, it is for reading only and is set only in built-in profiles.
 - A check may carry Korean text next to the English: `description_ko`, `rationale_ko`, `remediation_ko` (and `guidance_ko` in `manual`),
   written in natural Korean, not word by word (the terms the project uses: 점검 항목 for a control, 프로파일 for a profile). Where it
   is there, `explain --lang ko`, the dashboard (in Korean), the Markdown and HTML reports and the result's `remediationKo` (and, for a manual check's `guidance_ko`, `reasonKo`) use it;

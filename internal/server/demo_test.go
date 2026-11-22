@@ -34,7 +34,7 @@ func seeded(t *testing.T) (*server.Server, string) {
 	if n < 100 {
 		t.Fatalf("only %d demo results", n)
 	}
-	srv := server.New(server.Config{Store: store, Rate: 100000, Now: func() time.Time { return now }})
+	srv := server.New(server.Config{Store: store, Rate: 100000, Now: func() time.Time { return now }, Content: content})
 	tok, _, err := store.CreateCredential(context.Background(), server.ScopeAPI, "t", "", 0)
 	if err != nil {
 		t.Fatal(err)
@@ -66,6 +66,29 @@ func TestDemoFleetShowsWhatTheDashboardIsFor(t *testing.T) {
 		if !strings.Contains(hosts, want) {
 			t.Errorf("hosts lack %s", want)
 		}
+	}
+	// Several standards: KISA on every host and image (the default), essentials on the web and API servers, the Ubuntu 22.04 STIG
+	// on the Ubuntu 22.04 hosts; each with the profile's counts on the hosts and what the standard has.
+	var pl struct {
+		Default  string              `json:"default"`
+		Profiles []server.ProfileUse `json:"profiles"`
+	}
+	if err := json.Unmarshal([]byte(get("/api/v1/profiles")), &pl); err != nil {
+		t.Fatal(err)
+	}
+	fleet := map[string]int{}
+	for _, p := range pl.Profiles {
+		if p.Fleet == nil || p.Fleet.Score == nil || p.Controls == 0 || p.Title == "" {
+			t.Errorf("%s: %+v", p.ID, p)
+			continue
+		}
+		fleet[p.ID] = p.Fleet.Hosts
+		if p.ID == "stig-ubuntu2204" && p.StandardControls != 188 {
+			t.Errorf("stig: %d of %d", p.Controls, p.StandardControls)
+		}
+	}
+	if pl.Default != "kisa-2026" || fleet["kisa-2026"] != 12 || fleet["essentials"] != 7 || fleet["stig-ubuntu2204"] != 2 {
+		t.Errorf("default %s, hosts per profile %v", pl.Default, fleet)
 	}
 	// A host with a history has scans to compare.
 	if !strings.Contains(get("/api/v1/hosts/1"), `"scans":[{`) {

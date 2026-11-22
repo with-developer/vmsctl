@@ -82,7 +82,8 @@ export async function demoRequest<T>(path: string, init?: RequestInit): Promise<
   const data = await load();
   if (url.pathname === "/api/v1/hosts") {
     const kind = url.searchParams.get("kind") === "image" ? "image" : "host";
-    const recorded = data[`/api/v1/hosts?kind=${kind}&limit=500`] as { hosts: HostSummary[] } | undefined;
+    const profile = url.searchParams.get("profile");
+    const recorded = data[demoKey(`/api/v1/hosts?kind=${kind}&limit=500${profile ? `&profile=${encodeURIComponent(profile)}` : ""}`)] as { hosts: HostSummary[] } | undefined;
     return filterHosts(recorded?.hosts ?? [], url.searchParams) as T;
   }
   const hit = data[demoKey(path)];

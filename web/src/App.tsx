@@ -150,7 +150,7 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
             <select id="profile" value={selected} onChange={(e) => select(e.target.value)}>
               {list.profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.id} ({t("profile.hosts", { n: p.hosts })})
+                  {p.id} ({t("profile.hosts", { n: p.fleet?.hosts ?? p.hosts })})
                 </option>
               ))}
             </select>

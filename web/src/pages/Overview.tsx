@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
 import { useState } from "react";
+import { useProfile } from "../lib/profile";
 import { useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
 import { ago, ctitle, percent } from "../lib/format";
@@ -7,7 +8,7 @@ import { Await, Donut, Empty, Gauge, PageHeader, ScorePill, Severity, StatusBadg
 import { IconAlert, IconClock, IconServer } from "../components/icons";
 import { TrendChart } from "../components/charts";
 import { GettingStarted } from "../components/start";
-import type { FailingControl, HostSummary, Overview, RegressedControl } from "../lib/types";
+import type { FailingControl, HostSummary, Overview, ProfileUse, RegressedControl } from "../lib/types";
 
 export const STALE_DAYS = 7;
 
@@ -49,6 +50,8 @@ export function OverviewPage() {
                 <FixFirst o={o} />
                 <Changes o={o} silent={silent.data?.hosts ?? []} />
               </div>
+
+              <Standards />
 
               <TrendCard />
 
@@ -181,6 +184,46 @@ function HostTiles({ hosts }: { hosts: HostSummary[] }) {
             </a>
           </li>
         ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Every standard the hosts are scanned with, as a card with its pass rate; choosing one shows its numbers on every page. */
+function Standards() {
+  const { t, lang } = useI18n();
+  const { list, selected, select } = useProfile();
+  const used = (list?.profiles ?? []).filter((p): p is ProfileUse & { fleet: NonNullable<ProfileUse["fleet"]> } => !!p.fleet && p.fleet.hosts > 0);
+  if (used.length < 2) return null; // one standard: the page above is all about it
+  return (
+    <section className="card">
+      <h2>{t("overview.standards")}</h2>
+      <p className="muted small">{t("overview.standardsHelp")}</p>
+      <ul className="standards">
+        {used.map((p) => {
+          const shown = p.id === selected;
+          const partial = !!p.standardControls && !!p.controls && p.controls < p.standardControls;
+          return (
+            <li key={p.id}>
+              <button className={`standard${shown ? " on" : ""}`} aria-pressed={shown} onClick={() => select(p.id)}>
+                <span className="standard-head">
+                  <span className="mono">{p.id}</span>
+                  {shown && <span className="badge s-WAIVED">{t("standard.shown")}</span>}
+                </span>
+                <span className="standard-title small">{(lang === "ko" && p.titleKo) || p.title || p.id}</span>
+                <span className="standard-score">
+                  <ScorePill score={p.fleet.score} />
+                  <span className="muted small">{t("standard.failing", { failing: p.fleet.failing, hosts: p.fleet.hosts })}</span>
+                </span>
+                <StatusBar counts={p.fleet.counts} />
+                <span className="muted small">
+                  {p.standardControls ? t("standard.coverage", { n: p.controls ?? 0, total: p.standardControls }) : t("standard.controls", { n: p.controls ?? 0 })}
+                  {partial && <span className="badge s-MANUAL standard-partial">{t("standard.partial")}</span>}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

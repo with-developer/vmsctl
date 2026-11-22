@@ -185,8 +185,11 @@ type Profile struct {
 	TitleKo  string `yaml:"title_ko"`
 	// OS names the operating systems the profile is for, as ID-VERSION_ID of /etc/os-release (ubuntu-22.04). On any other host every
 	// control is NOT_APPLICABLE, with the reason: a standard written for one distribution says nothing true about another. Empty: any.
-	OS       []string  `yaml:"os"`
-	Controls []Control `yaml:"controls"`
+	OS []string `yaml:"os"`
+	// StandardControls is how many controls the standard itself has, when the profile maps only some of them (the dashboard says
+	// "65 of 188"); 0 for a baseline of vmsctl's own. For reading only: it is not in the profile digest.
+	StandardControls int       `yaml:"standard_controls"`
+	Controls         []Control `yaml:"controls"`
 }
 
 // Control is one control of a profile.
@@ -524,6 +527,9 @@ func validateProfile(file string, pr *Profile, checks map[string]*Check) error {
 		if !profileOSRe.MatchString(os) {
 			p.add("os %q must be ID-VERSION_ID such as ubuntu-22.04", os)
 		}
+	}
+	if pr.StandardControls != 0 && pr.StandardControls < len(pr.Controls) {
+		p.add("standard_controls (%d) is less than the %d controls the profile maps", pr.StandardControls, len(pr.Controls))
 	}
 	seen := map[string]bool{}
 	for _, ctl := range pr.Controls {

@@ -109,6 +109,11 @@ func TestExtendRefuses(t *testing.T) {
 			profs:  map[string]string{"x-acme-baseline.yaml": strings.Replace(packProfile, "Acme baseline", "KISA CII technical vulnerability assessment guide, 2026 edition — Unix servers", 1)},
 			want:   "title of another profile",
 		},
+		"standard controls": {
+			checks: map[string]string{"x-acme/motd-present.yaml": packCheck},
+			profs:  map[string]string{"x-acme-baseline.yaml": strings.Replace(packProfile, "revision: 1\n", "revision: 1\nstandard_controls: 10\n", 1)},
+			want:   "standard_controls is set only in built-in profiles",
+		},
 		"an area": {
 			checks: map[string]string{"x-acme/motd-present.yaml": packCheck},
 			profs:  map[string]string{"x-acme-baseline.yaml": strings.Replace(packProfile, "    severity: low\n", "    severity: low\n    area: accounts\n", 1)},

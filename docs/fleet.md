@@ -13,7 +13,7 @@ it cannot make one scan, run anything or read anything there.
 release binaries are, and a source build uses `make build-web` (Node 22). A binary from `go install`
 has the API only and says so at `/`. Sign in with a read token (`vmsctl server token create --scope
 api`): the dashboard shows the fleet overview (pass rate, the pass rate over time for 7, 30 or 90 days, hosts with a failing control, hosts that
-stopped reporting, what to fix first with what each fix adds to the pass rate, and what just got worse, was fixed or went silent), the host list (search, filters,
+stopped reporting, what to fix first with what each fix adds to the pass rate, what just got worse, was fixed or went silent, and, when the hosts are scanned with several standards, a card for each with its pass rate, a click away from showing its numbers on every page), the host list (search, filters,
 sorting, CSV export, and for each host its operating system, labels, a trend line of its latest scans and whether
 its agent is connected), a list of controls (and for each one what it checks, why it matters, how to fix it and the hosts that fail it), a matrix of every control on every host, and for each host what got worse or was fixed since its previous scan (a click opens the control), its controls grouped by area (accounts, files, services, patches, logs) with the evidence of every check, its history and a
 comparison of any scan with the one before. It is available in English and Korean and follows the
@@ -28,7 +28,7 @@ vmsctl server demo
 ```
 
 starts a server on `127.0.0.1:8443` with a made-up fleet (twelve hosts, two weeks of scans, built from
-the real controls) and prints a read token to sign in with. The data lives in memory and is gone when
+the real controls: KISA on every host, the essentials baseline on some and the Ubuntu 22.04 STIG on the Ubuntu 22.04 hosts) and prints a read token to sign in with. The data lives in memory and is gone when
 the command ends. It needs a binary with the dashboard (a release binary or `make build-web`).
 
 ## Quick start
@@ -263,7 +263,7 @@ curl --cacert tls.crt -H "Authorization: Bearer hlt_api_..." https://vmsctl.exam
 
 | Request | Answer |
 |---|---|
-| `GET /api/v1/profiles` | The profiles of the latest scans with the number of hosts of each, the one most hosts use (`default`), and their titles |
+| `GET /api/v1/profiles` | The profiles of the latest scans with the number of hosts of each, the one most hosts use (`default`), and their titles; for each, `fleet` (on the hosts, not the images: hosts, hosts with a failing control, status counts and pass rate) and, for a built-in profile, its titles, how many controls it maps and how many the standard has (`standardControls`, for a profile that maps only some) |
 | `GET /api/v1/trend` | The fleet over the last days, one point a day, oldest first: hosts, hosts with a failing control, counts and pass rate as of that day (`?days=30`, 1 to 90). It is computed from the scans that are stored, so `server prune` changes the days it covers, and is served again for 30 seconds |
 | `GET /api/v1/overview` | Hosts, hosts with a failing control, stale hosts, counts, the failing controls ranked by severity times hosts with the `gain` in pass rate (percentage points) of fixing each, recent regressions and recent fixes (`?staleDays=7`) |
 | `GET /api/v1/hosts` | The hosts with the counts and score of their latest scan (`?q=`, `?status=failing\|stale`, `?sort=name\|score\|last`, `?limit=`, `?offset=`, `?format=csv`, `?kind=image` for the images, `?label=env%3Dprod` for the hosts with a label; the dashboard filters by a clicked label); each host also has its `os`, `labels` (what its latest result says, bounded), `agentOnline` and a `trend` of the pass rate of its latest scans |
