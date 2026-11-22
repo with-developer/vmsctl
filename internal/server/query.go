@@ -873,7 +873,7 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 type ProfileUse struct {
 	ID    string `json:"id"`
 	Hosts int    `json:"hosts"` // hosts and images, for the choice of the default
-	// Fleet is the profile on the hosts (not the images) as the overview counts them; nil when only images use it.
+	// Fleet is the profile on the hosts (not the images) whose latest scan has its controls; nil when only images use it.
 	Fleet *ProfileFleet `json:"fleet,omitempty"`
 	// From the built-in profile (empty for a pack's): its titles, how many controls it maps, and how many the standard has.
 	Title            string `json:"title,omitempty"`
@@ -908,22 +908,11 @@ func (s *Store) Profiles(ctx context.Context) ([]ProfileUse, error) {
 		}
 		out = append(out, u)
 	}
-	if err := rs.Err(); err != nil {
-		return nil, err
-	}
-	_ = rs.Close()
-	fleet, err := s.profileFleets(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for i := range out {
-		out[i].Fleet = fleet[out[i].ID]
-	}
-	return out, nil
+	return out, rs.Err()
 }
 
-// profileFleets counts each profile over the latest scans of the hosts.
-func (s *Store) profileFleets(ctx context.Context) (map[string]*ProfileFleet, error) {
+// ProfileFleets counts each profile over the latest scans of the hosts (for the profile list; the default choice does not need it).
+func (s *Store) ProfileFleets(ctx context.Context) (map[string]*ProfileFleet, error) {
 	rs, err := s.db.QueryContext(ctx, `
 		SELECT c.profile, c.status, COUNT(*), COUNT(DISTINCT l.host_row)
 		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row

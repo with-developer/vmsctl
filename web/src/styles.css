@@ -401,5 +401,7 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 .standard-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-weight: 700; }
 .standard-title { color: var(--muted); overflow-wrap: anywhere; }
 .standard-score { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-.standard-partial { margin-left: .4rem; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 999px; white-space: nowrap; }
+.tag-shown { background: var(--accent-soft); color: var(--accent); }
+.tag-partial { margin-left: .4rem; border: 1px solid var(--border); color: var(--text); background: var(--surface-2); }
 .standard .pill { justify-self: start; }

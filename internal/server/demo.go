@@ -67,7 +67,7 @@ func SeedDemo(ctx context.Context, store *Store, content *engine.Content, profil
 	profilesOf := func(h demoHost) []*engine.Profile {
 		list := []*engine.Profile{profile}
 		for _, p := range others {
-			if len(p.OS) > 0 && slices.Contains(p.OS, demoOSName(h.os)) || len(p.OS) == 0 && (strings.HasPrefix(h.name, "web-") || strings.HasPrefix(h.name, "api-")) {
+			if len(p.OS) > 0 && slices.Contains(p.OS, demoOSName(h)) || len(p.OS) == 0 && (strings.HasPrefix(h.name, "web-") || strings.HasPrefix(h.name, "api-")) {
 				list = append(list, p)
 			}
 		}
@@ -161,9 +161,23 @@ func demoRand(parts ...string) float64 {
 	return rand.New(rand.NewPCG(h.Sum64(), 0x9e3779b97f4a7c15)).Float64() //nolint:gosec // generated demo data, not a secret
 }
 
-// demoOSName is a demo host's system as a profile's os names it: "Ubuntu 22.04" is ubuntu-22.04.
-func demoOSName(os string) string {
-	return strings.ReplaceAll(strings.ToLower(os), " ", "-")
+// demoOSIDs are the os-release IDs of the demo's systems, by the first word of their names.
+var demoOSIDs = map[string]string{"Ubuntu": "ubuntu", "Debian": "debian", "Rocky": "rocky", "AlmaLinux": "almalinux", "Amazon": "amzn", "CentOS": "centos", "Alpine": "alpine"}
+
+// demoOS is a demo host's system as a scan reports it: "Ubuntu 22.04" is ID ubuntu, VERSION_ID 22.04.
+func demoOS(h demoHost) engine.OSInfo {
+	words := strings.Fields(h.os)
+	id := h.family
+	if v, ok := demoOSIDs[words[0]]; ok {
+		id = v
+	}
+	return engine.OSInfo{ID: id, VersionID: words[len(words)-1], Family: h.family, Name: h.os, Supported: true}
+}
+
+// demoOSName is a demo host's system as a profile's os names it (ubuntu-22.04).
+func demoOSName(h demoHost) string {
+	os := demoOS(h)
+	return os.ID + "-" + os.VersionID
 }
 
 func demoResult(content *engine.Content, profiles []*engine.Profile, h demoHost, daysAgo, days int, at time.Time) *engine.Result {
@@ -185,13 +199,13 @@ func demoResult(content *engine.Content, profiles []*engine.Profile, h demoHost,
 		},
 		Host: engine.HostInfo{
 			Hostname: h.name, HostID: hex.EncodeToString(fnvSum(h.name)),
-			OS:   engine.OSInfo{ID: h.family, Family: h.family, Name: h.os, Supported: true},
+			OS:   demoOS(h),
 			Arch: "amd64", Labels: demoLabels(h.name),
 		},
 		Profiles: []engine.ProfileInfo{},
 		Summary:  map[string]engine.ProfileSummary{},
 	}
-	decided := map[string]engine.Status{} // a check has one result in a scan, whichever controls list it
+	decided := map[string]engine.Status{} // an automated check has one result in a scan, whichever controls list it
 	for _, profile := range profiles {
 		res.Profiles = append(res.Profiles, engine.ProfileInfo{ID: profile.ID, Revision: profile.Revision, Digest: digest, Title: profile.Title})
 		demoControls(content, profile, h, failRate, digest, decided, res)
@@ -228,7 +242,9 @@ func demoControls(content *engine.Content, profile *engine.Profile, h demoHost, 
 			st, ok := decided[id]
 			if !ok {
 				st = demoCheckStatus(check, ctl.ID, mixed, h, failRate)
-				decided[id] = st
+				if check.Manual == nil { // a manual check's status here depends on its control (mixed or not)
+					decided[id] = st
+				}
 			}
 			cr.Checks = append(cr.Checks, id)
 			cres := engine.CheckResult{
