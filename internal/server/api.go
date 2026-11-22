@@ -125,11 +125,20 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	if len(uses) > 0 {
 		def = uses[0].ID
 	}
+	fleet, err := s.cfg.Store.ProfileFleets(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	for i := range uses {
+		uses[i].Fleet = fleet[uses[i].ID]
+	}
 	titles := map[string]string{}
 	if s.cfg.Content != nil {
-		for _, u := range uses {
+		for i, u := range uses {
 			if p := s.cfg.Content.Profiles[u.ID]; p != nil {
 				titles[u.ID] = p.Title
+				uses[i].Title, uses[i].TitleKo, uses[i].Controls, uses[i].StandardControls = p.Title, p.TitleKo, len(p.Controls), p.StandardControls
 			}
 		}
 	}

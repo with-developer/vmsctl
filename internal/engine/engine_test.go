@@ -338,6 +338,13 @@ func TestLoadRejectsInvalidContent(t *testing.T) {
 			t.Errorf("err = %v", err)
 		}
 	})
+	t.Run("fewer standard controls than mapped", func(t *testing.T) {
+		profiles := fstest.MapFS{"p.yaml": {Data: []byte("id: p\nrevision: 1\ntitle: P\nstandard_controls: 1\ncontrols:\n  - {id: C, title: C, severity: low, manual: m}\n  - {id: D, title: D, severity: low, manual: m}\n")}}
+		_, err := Load(fstest.MapFS{}, profiles)
+		if err == nil || !strings.Contains(err.Error(), "standard_controls (1) is less than the 2 controls") {
+			t.Errorf("err = %v", err)
+		}
+	})
 	t.Run("unknown area", func(t *testing.T) {
 		profiles := fstest.MapFS{"p.yaml": {Data: []byte("id: p\nrevision: 1\ntitle: P\ncontrols:\n  - {id: C, title: C, severity: low, area: network, manual: m}\n")}}
 		_, err := Load(fstest.MapFS{}, profiles)

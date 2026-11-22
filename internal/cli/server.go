@@ -328,8 +328,8 @@ func newServerDemoCommand() *cobra.Command {
 		Use:   "demo",
 		Short: "Try the dashboard with a made-up fleet (nothing is scanned or written)",
 		Long: `Demo starts a server on a loopback address with generated results: twelve invented hosts with
-two weeks of scans each, built from the real controls of the profile, so the dashboard has something
-to show. The data lives in memory and is gone when the command ends. It prints a read token to sign in with.`,
+two weeks of scans each, built from the real controls of the profile (and, on some hosts, of the
+other built-in profiles), so the dashboard has something to show. The data lives in memory and is gone when the command ends. It prints a read token to sign in with.`,
 		Example: `  vmsctl server demo
   vmsctl server demo --listen 127.0.0.1:9000`,
 		Args: cobra.NoArgs,
