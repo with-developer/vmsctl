@@ -14,6 +14,7 @@ export interface ChartPoint {
 const W = 800;
 const H = 220;
 const PAD = { l: 44, r: 16, t: 14, b: 28 };
+const MARKS = 22; // the strip under the plot for the marks of the days that changed
 
 /**
  * The path of a line over points where some have no value: a gap ends one segment and starts the next, so a day with
@@ -68,15 +69,16 @@ function area(line: string, baseline: number): string {
 export function TrendChart({ points, label }: { points: ChartPoint[]; label: string }) {
   const { lang, t } = useI18n();
   const marked = points.some((p) => (p.worse ?? 0) > 0 || (p.fixed ?? 0) > 0);
+  const strip = marked ? MARKS : 0;
   const [hover, setHover] = useState<number | null>(null);
   const box = useRef<SVGSVGElement>(null);
   const n = points.length;
   const x = (i: number) => PAD.l + (n <= 1 ? 0.5 : i / (n - 1)) * (W - PAD.l - PAD.r);
   const scores = points.map((p) => p.score);
   const { lo, hi, step } = yAxis(scores);
-  const y = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b);
+  const y = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b - strip);
   const lines = segments(scores, x, y);
-  const baseline = H - PAD.b;
+  const baseline = H - PAD.b - strip;
   const date = (iso: string) => new Date(iso).toLocaleDateString(lang === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric" });
   const ticks = Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, k) => lo + k * step);
   const labelAt = n <= 1 ? [0] : n === 2 ? [0, 1] : [0, Math.floor((n - 1) / 2), n - 1];
@@ -120,8 +122,8 @@ export function TrendChart({ points, label }: { points: ChartPoint[]; label: str
         {/* what moved the line: a red mark under a day when controls got worse, a green one when some were fixed */}
         {points.map((p, i) => (
           <g key={`m${i}`}>
-            {(p.worse ?? 0) > 0 && <path className="trend-mark-worse" d={`M${x(i) - 4} ${baseline - 15}h8l-4 6z`} />}
-            {(p.fixed ?? 0) > 0 && <path className="trend-mark-fixed" d={`M${x(i) - 4} ${baseline - 2}h8l-4 -6z`} />}
+            {(p.worse ?? 0) > 0 && <path className="trend-mark-worse" d={`M${x(i) - 4} ${baseline + 4}h8l-4 6z`} />}
+            {(p.fixed ?? 0) > 0 && <path className="trend-mark-fixed" d={`M${x(i) - 4} ${baseline + 19}h8l-4 -6z`} />}
           </g>
         ))}
         {hover !== null && h && (
@@ -139,7 +141,18 @@ export function TrendChart({ points, label }: { points: ChartPoint[]; label: str
         </div>
       )}
       {marked && (
-        <p className="trend-legend muted small">
+        <ul className="sr-only">
+          {points
+            .filter((p) => (p.worse ?? 0) > 0 || (p.fixed ?? 0) > 0)
+            .map((p) => (
+              <li key={p.at}>
+                {date(p.at)}: {t("trend.changes", { worse: p.worse ?? 0, fixed: p.fixed ?? 0 })}
+              </li>
+            ))}
+        </ul>
+      )}
+      {marked && (
+        <p className="trend-legend muted small" aria-hidden="true">
           <svg width="10" height="8" aria-hidden="true"><path className="trend-mark-worse" d="M1 1h8l-4 6z" /></svg> {t("trend.legendWorse")}{" "}
           <svg width="10" height="8" aria-hidden="true"><path className="trend-mark-fixed" d="M1 7h8l-4 -6z" /></svg> {t("trend.legendFixed")}
         </p>

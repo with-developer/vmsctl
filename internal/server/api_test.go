@@ -1099,9 +1099,21 @@ func TestTrendChanges(t *testing.T) {
 	if worse == 0 || fixed != 0 {
 		t.Fatalf("before the fix: worse %d, fixed %d in %+v", worse, fixed, tr.Points)
 	}
-	f.rescan(t, "web-01.json", "web-01-fixed", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS"}) })
+	before := tr.Points[len(tr.Points)-1].Worse
+	// A fix, and a failing control the previous scan did not have (a new rule): one fix, nothing worse.
+	f.rescan(t, "web-01.json", "web-01-fixed", func(cs []any) []any {
+		cs = setStatus(cs, map[string]string{"U-01": "PASS"})
+		return append(cs, map[string]any{"profile": "kisa-2026", "id": "X-9", "title": "X-9", "severity": "high", "status": "FAIL", "checks": []string{}})
+	})
 	f.json(t, "/api/v1/trend?days=3", &tr)
-	if last := tr.Points[len(tr.Points)-1]; last.Fixed != 1 {
-		t.Errorf("the last day = %+v, want one fix", last)
+	if last := tr.Points[len(tr.Points)-1]; last.Fixed != 1 || last.Worse != before {
+		t.Errorf("the last day = %+v, want one fix and nothing more worse than %d", last, before)
+	}
+	// Another profile counts nothing of this one.
+	f.json(t, "/api/v1/trend?days=3&profile=essentials", &tr)
+	for _, p := range tr.Points {
+		if p.Worse != 0 || p.Fixed != 0 {
+			t.Errorf("essentials: %+v", p)
+		}
 	}
 }
