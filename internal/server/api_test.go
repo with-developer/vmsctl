@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1041,6 +1042,16 @@ func TestOverviewFixFirstOrder(t *testing.T) {
 	if at["U-08"] >= at["X-1"] || at["X-1"] >= at["X-2"] {
 		t.Errorf("order = %+v", o.TopFailing)
 	}
+	// The control list, which the remediation page orders the same way, takes the highest severity too.
+	var cl struct {
+		Controls []ControlSummary `json:"controls"`
+	}
+	f.json(t, "/api/v1/controls", &cl)
+	for _, c := range cl.Controls {
+		if c.ID == "X-3" && c.Severity != "high" {
+			t.Errorf("X-3 in the control list: %+v", c)
+		}
+	}
 }
 
 // A host's controls carry the area and the Korean title of the built-in profile.
@@ -1142,6 +1153,14 @@ func TestControlFailingSince(t *testing.T) {
 	f.rescan(t, "web-01.json", "web-01-again", func(cs []any) []any { return cs })
 	if h := get(); h.FailingSince != first.FailingSince || h.ScanID == first.ScanID {
 		t.Errorf("still failing: %+v, want since %s and a newer scan", h, first.FailingSince)
+	}
+	// A scan without the control (another profile, a rule taken out) does not end the run.
+	f.rescan(t, "web-01.json", "web-01-without", func(cs []any) []any {
+		return slices.DeleteFunc(cs, func(c any) bool { return c.(map[string]any)["id"] == "U-01" })
+	})
+	f.rescan(t, "web-01.json", "web-01-back", func(cs []any) []any { return cs })
+	if h := get(); h.FailingSince != first.FailingSince {
+		t.Errorf("after a scan without the control: since %s, want %s", h.FailingSince, first.FailingSince)
 	}
 	f.rescan(t, "web-01.json", "web-01-pass", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS"}) })
 	if h := get(); h.Status != "PASS" || h.FailingSince != "" {

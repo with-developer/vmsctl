@@ -2,21 +2,21 @@ import { Fragment, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useAsync, useNow } from "../lib/hooks";
 import { useI18n } from "../lib/i18n";
-import { ago, ctitle, localized } from "../lib/format";
+import { AREAS, ago, ctitle, localized } from "../lib/format";
 import { Await, Empty, Inline, PageHeader, Severity, Skeleton, StatusBadge } from "../components/ui";
 import { IconSearch } from "../components/icons";
 import { ControlDetail } from "./Host";
 import { STALE_DAYS } from "./Overview";
 import type { ControlHost, ControlSummary, ScanDoc } from "../lib/types";
 
-const AREAS = ["accounts", "files", "services", "patches", "logs"];
+/** The weight of a severity in the order to fix in, as the server's (internal/server, the overview's "fix first"). */
 const WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
-/** The order to fix in, as the overview's "fix first": severity times the hosts that fail, then the hosts, then the ID. */
+/** The order to fix in, the overview's "fix first": severity times the hosts that fail, then the hosts, then the ID as text. */
 export function fixOrder(a: ControlSummary, b: ControlSummary): number {
   const fa = a.counts.FAIL ?? 0;
   const fb = b.counts.FAIL ?? 0;
-  return fb * (WEIGHT[b.severity] ?? 1) - fa * (WEIGHT[a.severity] ?? 1) || fb - fa || a.id.localeCompare(b.id, undefined, { numeric: true });
+  return fb * (WEIGHT[b.severity] ?? 1) - fa * (WEIGHT[a.severity] ?? 1) || fb - fa || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
 /**
@@ -112,13 +112,17 @@ export function FixPage({ profile, id }: { profile?: string; id?: string }) {
 /** One control: what to do, and the hosts to do it on. */
 function FixDetail({ profile, id }: { profile: string; id: string }) {
   const { t, lang } = useI18n();
+  const now = useNow();
   const state = useAsync(() => api.control(profile, id, STALE_DAYS), [profile, id], false);
   return (
     <div className="stack workbench-main">
       <Await state={state} skeleton={<div className="card"><Skeleton height={200} /></div>}>
         {({ control: c, info }) => {
           // the longest failing first: those have waited the longest
-          const failing = c.hosts.filter((h) => h.status === "FAIL").sort((a, b) => (a.failingSince ?? "").localeCompare(b.failingSince ?? "") || a.host.localeCompare(b.host));
+          const failing = c.hosts
+            .filter((h) => h.status === "FAIL")
+            .sort((a, b) => (a.failingSince && b.failingSince ? a.failingSince.localeCompare(b.failingSince) : a.failingSince ? -1 : b.failingSince ? 1 : 0) || a.host.localeCompare(b.host));
+          const fixes = (info?.checks ?? []).filter((ch) => localized(lang, ch.remediation, ch.remediationKo));
           return (
             <>
               <section className="card">
@@ -132,11 +136,9 @@ function FixDetail({ profile, id }: { profile: string; id: string }) {
                   <Severity value={c.severity} /> · {c.profile}
                   {c.area ? ` · ${t(`area.${c.area}`)}` : ""} · {t("overview.onHosts", failing.length)}
                 </p>
-                <h3>{t("fix.howTo")}</h3>
+                {(info?.manual || fixes.length > 0) && <h3>{t("fix.howTo")}</h3>}
                 {info?.manual && <p className="prose">{localized(lang, info.manual, info.manualKo)}</p>}
-                {(info?.checks ?? [])
-                  .filter((ch) => localized(lang, ch.remediation, ch.remediationKo))
-                  .map((ch) => (
+                {fixes.map((ch) => (
                     <Fragment key={ch.id}>
                       <p className="small">
                         <span className="mono">{ch.id}</span> {lang === "ko" && ch.titleKo ? ch.titleKo : ch.title}
@@ -154,7 +156,7 @@ function FixDetail({ profile, id }: { profile: string; id: string }) {
                 ) : (
                   <ul className="fixhosts">
                     {failing.map((h) => (
-                      <FixHost key={h.hostId} host={h} profile={c.profile} id={c.id} title={c.title} severity={c.severity} />
+                      <FixHost key={h.hostId} host={h} profile={c.profile} id={c.id} now={now} />
                     ))}
                   </ul>
                 )}
@@ -168,11 +170,12 @@ function FixDetail({ profile, id }: { profile: string; id: string }) {
 }
 
 /** A host that fails the control: since when, and, on request, the evidence of its latest scan. */
-function FixHost({ host: h, profile, id, title, severity }: { host: ControlHost; profile: string; id: string; title: string; severity: string }) {
+function FixHost({ host: h, profile, id, now }: { host: ControlHost; profile: string; id: string; now: number }) {
   const { t } = useI18n();
-  const now = useNow();
   const [open, setOpen] = useState(false);
-  const doc = useAsync(() => (open ? api.scan(h.scanId) : Promise.resolve(null as ScanDoc | null)), [open, h.scanId]);
+  // fetched the first time it is opened, and kept when it is closed
+  const [wanted, setWanted] = useState(false);
+  const doc = useAsync(() => (wanted ? api.scan(h.scanId) : Promise.resolve(null as ScanDoc | null)), [wanted, h.scanId]);
   return (
     <li className={open ? "open" : ""}>
       <div className="fixhost-row">
@@ -183,7 +186,14 @@ function FixHost({ host: h, profile, id, title, severity }: { host: ControlHost;
         <span className="muted small">{h.failingSince ? t("fix.since", { ago: ago(h.failingSince, now, t) }) : ""}</span>
         <span className="push">
           <StatusBadge status={h.status} />
-          <button className="compact" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <button
+            className="compact"
+            aria-expanded={open}
+            onClick={() => {
+              setWanted(true);
+              setOpen((v) => !v);
+            }}
+          >
             {open ? t("fix.hideEvidence") : t("fix.showEvidence")}
           </button>
         </span>
@@ -192,7 +202,7 @@ function FixHost({ host: h, profile, id, title, severity }: { host: ControlHost;
         <div className="control-body">
           {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
           {doc.error && <p className="error-text">{doc.error.message}</p>}
-          {doc.data && <ControlDetail control={{ profile, id, title, severity, status: h.status }} doc={doc.data} />}
+          {doc.data && <ControlDetail control={{ profile, id }} doc={doc.data} />}
         </div>
       )}
     </li>
