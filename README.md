@@ -241,9 +241,9 @@ Titles and descriptions are vmsctl's own; profiles reference control IDs only.
 |---|---|
 | ![A host](docs/demo/dashboard-host.png) | ![The matrix](docs/demo/dashboard-matrix.png) |
 
-| Images that CI pushed: one history per image, a tag for every build |
-|---|
-| ![The list of images](docs/demo/dashboard-images.png) |
+| Fix: the failing controls in the order to fix them, how, and on which hosts | Images that CI pushed: one history per image, a tag for every build |
+|---|---|
+| ![The remediation page](docs/demo/dashboard-fix.png) | ![The list of images](docs/demo/dashboard-images.png) |
 
 How it works, the API, signing, notifications and the agent: [docs/fleet.md](docs/fleet.md).
 

@@ -11,7 +11,8 @@ import { HostPage } from "./pages/Host";
 import { MatrixPage } from "./pages/Matrix";
 import { ImagesPage } from "./pages/Images";
 import { ControlPage, ControlsPage } from "./pages/Controls";
-import { IconBox, IconGlobe, IconGrid, IconList, IconLogout, IconMoon, IconOverview, IconServer, IconShield, IconSun } from "./components/icons";
+import { FixPage } from "./pages/Fix";
+import { IconBox, IconGlobe, IconGrid, IconList, IconLogout, IconMoon, IconOverview, IconServer, IconShield, IconSun, IconWrench } from "./components/icons";
 
 type Auth = "checking" | "in" | "out" | "failed";
 
@@ -116,17 +117,19 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
   else if (page === "images") view = <ImagesPage />;
   else if (page === "controls" && arg && arg2) view = <ControlPage key={`${arg}/${arg2}`} profile={arg} id={arg2} />;
   else if (page === "controls") view = <ControlsPage />;
+  else if (page === "fix") view = <FixPage profile={arg} id={arg2} />;
   else view = <OverviewPage />;
-  const current = page === "hosts" || page === "matrix" || page === "controls" || page === "images" ? page : "overview";
+  const current = page === "hosts" || page === "matrix" || page === "controls" || page === "images" || page === "fix" ? page : "overview";
 
   const nav: [string, string, string, JSX.Element][] = [
     ["overview", "#/", t("nav.overview"), <IconOverview key="o" />],
+    ["fix", "#/fix", t("nav.fix"), <IconWrench key="f" />],
     ["hosts", "#/hosts", t("nav.hosts"), <IconServer key="h" />],
     ["controls", "#/controls", t("nav.controls"), <IconList key="c" />],
     ["matrix", "#/matrix", t("nav.matrix"), <IconGrid key="m" />],
   ];
   // Images show up once CI has pushed one.
-  if ((images.data?.total ?? 0) > 0) nav.splice(2, 0, ["images", "#/images", t("nav.images"), <IconBox key="i" />]);
+  if ((images.data?.total ?? 0) > 0) nav.splice(3, 0, ["images", "#/images", t("nav.images"), <IconBox key="i" />]);
 
   return (
     <div className="app">

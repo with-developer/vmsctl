@@ -1117,3 +1117,39 @@ func TestTrendChanges(t *testing.T) {
 		}
 	}
 }
+
+// A host that fails a control says since when: the first scan of the run of failing scans, which a passing scan ends.
+func TestControlFailingSince(t *testing.T) {
+	f := newAPIFixture(t)
+	get := func() ControlHost {
+		t.Helper()
+		var d struct {
+			Control ControlDetail `json:"control"`
+		}
+		f.json(t, "/api/v1/controls/kisa-2026/U-01", &d)
+		for _, h := range d.Control.Hosts {
+			if h.Host == "web-01" {
+				return h
+			}
+		}
+		t.Fatalf("no web-01 in %+v", d.Control.Hosts)
+		return ControlHost{}
+	}
+	first := get()
+	if first.Status != "FAIL" || first.FailingSince == "" || first.ScanID == 0 {
+		t.Fatalf("web-01 = %+v", first)
+	}
+	f.rescan(t, "web-01.json", "web-01-again", func(cs []any) []any { return cs })
+	if h := get(); h.FailingSince != first.FailingSince || h.ScanID == first.ScanID {
+		t.Errorf("still failing: %+v, want since %s and a newer scan", h, first.FailingSince)
+	}
+	f.rescan(t, "web-01.json", "web-01-pass", func(cs []any) []any { return setStatus(cs, map[string]string{"U-01": "PASS"}) })
+	if h := get(); h.Status != "PASS" || h.FailingSince != "" {
+		t.Errorf("passing: %+v", h)
+	}
+	f.rescan(t, "web-01.json", "web-01-fail", func(cs []any) []any { return cs })
+	want := f.clock.UTC().Format(stampLayout)
+	if h := get(); h.FailingSince != want {
+		t.Errorf("failing again: since %s, want %s (the last scan)", h.FailingSince, want)
+	}
+}

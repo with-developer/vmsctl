@@ -761,6 +761,7 @@ type ControlSummary struct {
 	TitleKo  string `json:"titleKo,omitempty"`
 	Severity string `json:"severity"`
 	Counts   Counts `json:"counts"`
+	Area     string `json:"area,omitempty"` // from the built-in profile (engine areas); empty for a pack's
 }
 
 // Controls lists every control with the status counts of the latest scans.
@@ -817,6 +818,10 @@ type ControlHost struct {
 	Host   string `json:"host"`
 	Status string `json:"status"`
 	Stale  bool   `json:"stale"`
+	ScanID int64  `json:"scanId"` // the host's latest scan, whose evidence says why
+	// FailingSince is, for a host that fails the control, when the run of scans that fail it began: the first of them, as far back
+	// as the stored scans go.
+	FailingSince string `json:"failingSince,omitempty"`
 }
 
 // ControlDetail is one control: the hosts, worst status first.
@@ -836,7 +841,7 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 		stale[h.ID] = h.Stale
 	}
 	rs, err := s.db.QueryContext(ctx, `
-		SELECT h.id, h.name, c.title, c.severity, c.status
+		SELECT h.id, h.name, l.id, c.title, c.severity, c.status
 		FROM scan_controls c JOIN (`+latestScans+`) l ON l.id = c.scan_row JOIN hosts h ON h.id = l.host_row
 		WHERE c.profile = ? AND c.control_id = ? ORDER BY h.name`, profile, id)
 	if err != nil {
@@ -847,7 +852,7 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 	for rs.Next() {
 		var h ControlHost
 		var title, sev string
-		if err := rs.Scan(&h.HostID, &h.Host, &title, &sev, &h.Status); err != nil {
+		if err := rs.Scan(&h.HostID, &h.Host, &h.ScanID, &title, &sev, &h.Status); err != nil {
 			return nil, err
 		}
 		h.Stale = stale[h.HostID]
@@ -861,12 +866,49 @@ func (s *Store) Control(ctx context.Context, profile, id string, staleAfter time
 	if len(d.Hosts) == 0 {
 		return nil, ErrNotFound
 	}
+	_ = rs.Close()
+	since, err := s.failingSince(ctx, profile, id)
+	if err != nil {
+		return nil, err
+	}
+	for i := range d.Hosts {
+		if d.Hosts[i].Status == "FAIL" {
+			d.Hosts[i].FailingSince = since[d.Hosts[i].HostID]
+		}
+	}
 	rank := map[string]int{}
 	for i, st := range statusOrder {
 		rank[st] = i
 	}
 	sort.SliceStable(d.Hosts, func(i, j int) bool { return rank[d.Hosts[i].Status] < rank[d.Hosts[j].Status] })
 	return d, nil
+}
+
+// failingSince is, for each host, the first scan of the run that fails the control up to now: the first FAIL after the last scan in
+// which the control was anything else. A scan without the control does not end the run.
+func (s *Store) failingSince(ctx context.Context, profile, id string) (map[int64]string, error) {
+	rs, err := s.db.QueryContext(ctx, `
+		SELECT s.host_row, MIN(s.received_at)
+		FROM scans s JOIN scan_controls c ON c.scan_row = s.id AND c.profile = ? AND c.control_id = ? AND c.status = 'FAIL'
+		WHERE s.received_at > COALESCE((
+		  SELECT MAX(s2.received_at) FROM scans s2
+		  JOIN scan_controls c2 ON c2.scan_row = s2.id AND c2.profile = c.profile AND c2.control_id = c.control_id AND c2.status != 'FAIL'
+		  WHERE s2.host_row = s.host_row), '')
+		GROUP BY s.host_row`, profile, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := map[int64]string{}
+	for rs.Next() {
+		var host int64
+		var at string
+		if err := rs.Scan(&host, &at); err != nil {
+			return nil, err
+		}
+		out[host] = at
+	}
+	return out, rs.Err()
 }
 
 // ProfileUse is a profile that the latest scans have controls of, and how many hosts that is.

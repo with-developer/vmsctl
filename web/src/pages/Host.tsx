@@ -335,7 +335,7 @@ function groupByArea(rows: ControlRow[], all: ControlRow[]): AreaGroup[] {
 }
 
 /** The checks of a control and what they observed. All of it is host text: shown as text only. */
-function ControlDetail({ control, doc }: { control: ControlRow; doc: ScanDoc }) {
+export function ControlDetail({ control, doc }: { control: ControlRow; doc: ScanDoc }) {
   const { t, lang } = useI18n();
   const dc = doc.controls.find((x) => x.profile === control.profile && x.id === control.id);
   const checks = (dc?.checks ?? []).map((ref) => doc.checks.find((c) => c.ref === ref)).filter((c) => c !== undefined);

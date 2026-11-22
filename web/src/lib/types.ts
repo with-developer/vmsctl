@@ -55,8 +55,8 @@ export interface DocCheck { ref: string; title: string; titleKo?: string; status
 export interface DocControl { profile: string; id: string; reason?: string; checks: string[]; waiver?: { reason: string; expires: string } }
 export interface ScanDoc { controls: DocControl[]; checks: DocCheck[] }
 
-export interface ControlSummary { profile: string; id: string; title: string; titleKo?: string; severity: string; counts: Counts }
-export interface ControlHost { hostId: number; host: string; status: Status; stale: boolean }
+export interface ControlSummary { profile: string; id: string; title: string; titleKo?: string; severity: string; counts: Counts; area?: string }
+export interface ControlHost { hostId: number; host: string; status: Status; stale: boolean; scanId: number; failingSince?: string }
 export interface CheckInfo {
   id: string; title: string; titleKo?: string; description: string; rationale: string; remediation: string;
   descriptionKo?: string; rationaleKo?: string; remediationKo?: string; // the rule's Korean text, where it has it

@@ -104,7 +104,7 @@ function FixFirst({ o }: { o: Overview }) {
                 </div>
               </div>
               {(c.gain ?? 0) > 0 && <span className="gain">{t("overview.gain", { n: points(c.gain ?? 0) })}</span>}
-              <a className="button compact" href={`#/controls/${c.profile}/${c.id}`}>
+              <a className="button compact" href={`#/fix/${encodeURIComponent(c.profile)}/${encodeURIComponent(c.id)}`}>
                 {t("overview.howToFix")}
               </a>
             </li>
