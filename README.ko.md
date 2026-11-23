@@ -1,4 +1,4 @@
-<!-- translated from README.md @ 0917488 -->
+<!-- translated from README.md @ 4450d37 -->
 # vmsctl
 
 [![CI](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml/badge.svg)](https://github.com/with-developer/vmsctl/actions/workflows/ci.yml)
@@ -63,7 +63,7 @@ kisa-2026: 67 controls — 10 FAIL, 11 MANUAL, 29 PASS, 17 NOT_APPLICABLE
 호스트가 스스로 점검하고 결과를 `vmsctl server`로 보내면, 서버가 이력을 쌓아 두고 웹 대시보드로
 보여 줍니다. 영어와 한국어, 라이트·다크 테마, 휴대폰 화면을 지원합니다.
 
-![vmsctl 대시보드 투어: 개요, 호스트, 근거와 조치 방법이 있는 호스트, 점검 항목, 매트릭스, 한국어](docs/demo/dashboard-tour.gif)
+![vmsctl 대시보드 투어: 먼저 고칠 것과 기준별 현황이 있는 개요, 조치 화면, 호스트의 지난 스캔 이후 변화와 근거, 점검 항목, 매트릭스, 한국어](docs/demo/dashboard-tour.gif)
 
 ```sh
 vmsctl server demo      # 가상의 호스트 12대로 둘러보기. 실제로 점검하거나 저장하지 않습니다. 출력된 주소를 여세요

@@ -3,7 +3,8 @@ import { api, setUnauthorizedHandler } from "./lib/api";
 import { useAsync, useHash } from "./lib/hooks";
 import { ProfileProvider, useProfile } from "./lib/profile";
 import { useI18n } from "./lib/i18n";
-import { parseRoute } from "./lib/format";
+import { hostsAddress, imagesAddress, parseHostsView, parseImagesView, parseRoute } from "./lib/format";
+import { lastListAddress } from "./lib/listAddress";
 import { Login } from "./pages/Login";
 import { OverviewPage } from "./pages/Overview";
 import { HostsPage } from "./pages/Hosts";
@@ -12,7 +13,7 @@ import { MatrixPage } from "./pages/Matrix";
 import { ImagesPage } from "./pages/Images";
 import { ControlPage, ControlsPage } from "./pages/Controls";
 import { FixPage } from "./pages/Fix";
-import { IconBox, IconGlobe, IconGrid, IconList, IconLogout, IconMoon, IconOverview, IconServer, IconShield, IconSun, IconWrench } from "./components/icons";
+import { IconBox, IconGlobe, IconGrid, IconList, IconLogout, IconMoon, IconOverview, IconSearch, IconServer, IconShield, IconSun, IconWrench } from "./components/icons";
 
 type Auth = "checking" | "in" | "out" | "failed";
 
@@ -102,7 +103,7 @@ export function App() {
   );
 }
 
-/** The sidebar and the page, once the person is signed in and the profiles are known. */
+/** The top bar and the page, once the person is signed in and the profiles are known. */
 function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolean; toggleTheme: () => void; logout: () => void }) {
   const { t, toggle } = useI18n();
   const { list, selected, select } = useProfile();
@@ -120,6 +121,7 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
   else if (page === "fix") view = <FixPage profile={arg} id={arg2} />;
   else view = <OverviewPage />;
   const current = page === "hosts" || page === "matrix" || page === "controls" || page === "images" || page === "fix" ? page : "overview";
+  const searchImages = current === "images"; // on the images, the top search looks for images
 
   const nav: [string, string, string, JSX.Element][] = [
     ["overview", "#/", t("nav.overview"), <IconOverview key="o" />],
@@ -133,49 +135,66 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <a className="brand" href="#/">
-          <IconShield size={24} />
-          <span>{t("app.name")}</span>
-        </a>
-        <nav aria-label={t("nav.section")}>
-          <span className="nav-section">{t("nav.section")}</span>
-          {nav.map(([key, href, label, icon]) => (
-            <a key={key} href={href} aria-current={current === key ? "page" : undefined}>
-              {icon}
-              <span>{label}</span>
-            </a>
-          ))}
-        </nav>
-        {list && list.profiles.length > 1 && (
-          <div className="profile-select">
-            <label htmlFor="profile">{t("profile.label")}</label>
-            <select id="profile" value={selected} onChange={(e) => select(e.target.value)}>
-              {list.profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.id} ({t("profile.hosts", { n: p.fleet?.hosts ?? p.hosts })})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="sidebar-foot">
-          <button className="ghost" onClick={toggleTheme} aria-label={dark ? t("theme.light") : t("theme.dark")} title={dark ? t("theme.light") : t("theme.dark")}>
-            {dark ? <IconSun /> : <IconMoon />}
-            <span>{dark ? t("theme.light") : t("theme.dark")}</span>
-          </button>
-          <button className="ghost" onClick={toggle} aria-label={t("lang.switch")} title={t("lang.switch")}>
-            <IconGlobe />
-            <span>{t("lang.switch")}</span>
-          </button>
-          {!DEMO && (
-            <button className="ghost" onClick={logout} aria-label={t("nav.logout")} title={t("nav.logout")}>
-              <IconLogout />
-              <span>{t("nav.logout")}</span>
+      <header className="topbar">
+        <div className="topbar-in">
+          <a className="brand" href="#/">
+            <IconShield size={22} />
+            <span>{t("app.name")}</span>
+          </a>
+          <nav className="topnav" aria-label={t("nav.section")}>
+            {nav.map(([key, href, label, icon]) => (
+              <a key={key} href={href} aria-current={current === key ? "page" : undefined}>
+                {icon}
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+          <div className="topbar-tools">
+            {list && list.profiles.length > 1 && (
+              <div className="profile-select">
+                <label htmlFor="profile" className="sr-only">
+                  {t("profile.label")}
+                </label>
+                <select id="profile" value={selected} onChange={(e) => select(e.target.value)} title={t("profile.label")}>
+                  {list.profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.id} ({t("profile.hosts", { n: p.fleet?.hosts ?? p.hosts })})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <form
+              className="topsearch search"
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const q = String(new FormData(e.currentTarget).get("q") ?? "").trim();
+                // the list's own filters stay; the list's search box takes the text from here, so this one empties
+                location.hash = searchImages
+                  ? imagesAddress({ ...parseImagesView(lastListAddress("images")), q })
+                  : hostsAddress({ ...parseHostsView(lastListAddress("hosts")), q });
+                e.currentTarget.reset();
+              }}
+            >
+              <IconSearch />
+              <input type="search" name="q" placeholder={t(searchImages ? "top.searchImages" : "top.search")} aria-label={t(searchImages ? "top.searchImages" : "top.search")} />
+            </form>
+            <button className="ghost icon-only" onClick={toggleTheme} aria-label={dark ? t("theme.light") : t("theme.dark")} title={dark ? t("theme.light") : t("theme.dark")}>
+              {dark ? <IconSun /> : <IconMoon />}
             </button>
-          )}
+            <button className="ghost lang-switch" onClick={toggle} aria-label={t("lang.switch")} title={t("lang.switch")}>
+              <IconGlobe />
+              <span>{t("lang.switch")}</span>
+            </button>
+            {!DEMO && (
+              <button className="ghost icon-only" onClick={logout} aria-label={t("nav.logout")} title={t("nav.logout")}>
+                <IconLogout />
+              </button>
+            )}
+          </div>
         </div>
-      </aside>
+      </header>
       <main key={selected}>
         {DEMO && (
           <p className="demo-banner" role="note">
