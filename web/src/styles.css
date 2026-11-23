@@ -59,7 +59,9 @@ ul, ol { margin: 0; }
 
 /* Layout */
 .app { min-height: 100vh; }
-html { scroll-padding-top: 4.5rem; } /* what is brought into view stays clear of the sticky top bar */
+/* --topbar-h: the sticky top bar's height, which what is brought into view and the remediation queue keep clear of */
+:root { --topbar-h: 4.25rem; }
+html { scroll-padding-top: var(--topbar-h); }
 /* The top bar: the brand, the pages, and on the right the profile, a host search and the settings */
 .topbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
 .topbar-in { max-width: 1312px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: .5rem clamp(16px, 3vw, 36px); }
@@ -73,9 +75,14 @@ html { scroll-padding-top: 4.5rem; } /* what is brought into view stays clear of
 .topbar-tools { margin-left: auto; display: flex; align-items: center; gap: .3rem; flex: none; }
 .topbar-tools .icon-only { padding: .45rem; }
 .topbar-tools .lang-switch { display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
-.topsearch { width: 10rem; }
+.topbar-tools .topsearch { flex: none; min-width: 0; width: 12rem; }
 @media (max-width: 1400px) { .topbar-tools .lang-switch span { display: none; } }
-@media (max-width: 1180px) { .topbar-tools .topsearch { display: none; } }
+/* not wide enough for the pages and the settings on one line: the pages go to a second row, with their labels */
+@media (max-width: 1240px) {
+  :root { --topbar-h: 6.9rem; }
+  .topbar-in { flex-wrap: wrap; row-gap: .25rem; }
+  .topnav { order: 3; width: 100%; }
+}
 main { padding: 1.6rem clamp(16px, 3vw, 36px) 3rem; max-width: 1312px; width: 100%; min-width: 0; margin: 0 auto; }
 .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .pagehead p { margin-top: .25rem; }
@@ -267,13 +274,13 @@ table.matrix .cell:hover { outline: 2px solid var(--text); outline-offset: 0; }
   .hosthead .gauge { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
-  /* a short page must not hand its spare height to the top bar: the rows keep their size and the page ends where it ends */
   .hero, .hosthead { min-width: 0; }
   .gauge svg { max-width: 180px; }
   .legend { justify-content: flex-start; }
   /* two rows: the brand and the settings, then the pages as a tab bar (icon over label, equal widths) */
   .topbar { position: static; }
   html { scroll-padding-top: 0; }
+  .topbar-tools .topsearch { display: none; }
   .topbar-in { flex-wrap: wrap; gap: .5rem; padding: .5rem 16px; }
   .topnav { order: 3; width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .2rem; }
   .topnav a { flex-direction: column; gap: .15rem; padding: .4rem .15rem; font-size: .74rem; justify-content: center; }
@@ -415,7 +422,7 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 .standard .pill { justify-self: start; }
 /* The remediation page: the queue on the left, the chosen control on the right */
 .workbench { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.queue { position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); display: flex; flex-direction: column; }
+.queue { position: sticky; top: calc(var(--topbar-h) + .5rem); max-height: calc(100vh - var(--topbar-h) - 1.5rem); display: flex; flex-direction: column; }
 .queue-filters { display: grid; gap: .5rem; padding: .8rem; border-bottom: 1px solid var(--border); }
 .workbench-main .fixhosts-head { margin: 0; padding: .9rem 1.1rem .5rem; font-size: .95rem; }
 .queue-filters .search { width: 100%; }

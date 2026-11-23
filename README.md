@@ -62,7 +62,7 @@ telnet service added (the host name is shortened).
 Hosts scan themselves and push the result to `vmsctl server`, which keeps the history and shows the
 fleet in a web dashboard (English and Korean, light and dark, fits a phone):
 
-![A tour of the vmsctl dashboard: overview, hosts, a host with evidence and how to fix it, a control, the matrix, Korean](docs/demo/dashboard-tour.gif)
+![A tour of the vmsctl dashboard: the overview with what to fix first and each standard, the remediation page, what changed on a host since its previous scan and the evidence, a control, the matrix, Korean](docs/demo/dashboard-tour.gif)
 
 ```sh
 vmsctl server demo      # a made-up fleet of twelve hosts, nothing scanned, nothing written: open the address it prints

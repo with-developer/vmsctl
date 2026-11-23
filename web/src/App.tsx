@@ -3,7 +3,8 @@ import { api, setUnauthorizedHandler } from "./lib/api";
 import { useAsync, useHash } from "./lib/hooks";
 import { ProfileProvider, useProfile } from "./lib/profile";
 import { useI18n } from "./lib/i18n";
-import { hostsAddress, parseHostsView, parseRoute } from "./lib/format";
+import { hostsAddress, imagesAddress, parseHostsView, parseImagesView, parseRoute } from "./lib/format";
+import { lastListAddress } from "./lib/listAddress";
 import { Login } from "./pages/Login";
 import { OverviewPage } from "./pages/Overview";
 import { HostsPage } from "./pages/Hosts";
@@ -120,6 +121,7 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
   else if (page === "fix") view = <FixPage profile={arg} id={arg2} />;
   else view = <OverviewPage />;
   const current = page === "hosts" || page === "matrix" || page === "controls" || page === "images" || page === "fix" ? page : "overview";
+  const searchImages = current === "images"; // on the images, the top search looks for images
 
   const nav: [string, string, string, JSX.Element][] = [
     ["overview", "#/", t("nav.overview"), <IconOverview key="o" />],
@@ -168,11 +170,15 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
               onSubmit={(e) => {
                 e.preventDefault();
                 const q = String(new FormData(e.currentTarget).get("q") ?? "").trim();
-                location.hash = hostsAddress({ ...parseHostsView(""), q });
+                // the list's own filters stay; the list's search box takes the text from here, so this one empties
+                location.hash = searchImages
+                  ? imagesAddress({ ...parseImagesView(lastListAddress("images")), q })
+                  : hostsAddress({ ...parseHostsView(lastListAddress("hosts")), q });
+                e.currentTarget.reset();
               }}
             >
               <IconSearch />
-              <input type="search" name="q" placeholder={t("top.search")} aria-label={t("top.search")} />
+              <input type="search" name="q" placeholder={t(searchImages ? "top.searchImages" : "top.search")} aria-label={t(searchImages ? "top.searchImages" : "top.search")} />
             </form>
             <button className="ghost icon-only" onClick={toggleTheme} aria-label={dark ? t("theme.light") : t("theme.dark")} title={dark ? t("theme.light") : t("theme.dark")}>
               {dark ? <IconSun /> : <IconMoon />}
