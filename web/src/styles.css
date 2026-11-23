@@ -58,19 +58,25 @@ ul, ol { margin: 0; }
 .icon { flex: none; }
 
 /* Layout */
-.app { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
-.sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; padding: 1.1rem .9rem; background: var(--surface); border-right: 1px solid var(--border); }
-.brand { display: flex; align-items: center; gap: .55rem; font-weight: 750; font-size: 1.1rem; color: var(--text); padding: .25rem .5rem; letter-spacing: -0.01em; }
+.app { min-height: 100vh; }
+html { scroll-padding-top: 4.5rem; } /* what is brought into view stays clear of the sticky top bar */
+/* The top bar: the brand, the pages, and on the right the profile, a host search and the settings */
+.topbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+.topbar-in { max-width: 1312px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: .5rem clamp(16px, 3vw, 36px); }
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 750; font-size: 1.05rem; color: var(--text); padding: .25rem .2rem; letter-spacing: -0.01em; flex: none; }
 .brand .icon { color: var(--accent); }
 .brand:hover { text-decoration: none; }
-.sidebar nav { display: grid; gap: .15rem; }
-.nav-section { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: .4rem .6rem; }
-.sidebar nav a { display: flex; align-items: center; gap: .65rem; padding: .55rem .7rem; border-radius: var(--radius-sm); color: var(--muted); font-weight: 520; }
-.sidebar nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-.sidebar nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
-.sidebar-foot { margin-top: auto; display: grid; gap: .1rem; }
-.sidebar-foot button { display: flex; align-items: center; gap: .65rem; text-align: left; width: 100%; }
-main { padding: 1.6rem clamp(16px, 3vw, 36px) 3rem; max-width: 1240px; width: 100%; min-width: 0; }
+.topnav { display: flex; gap: .1rem; min-width: 0; overflow-x: auto; scrollbar-width: none; } /* too narrow: it scrolls, nothing covers it */
+.topnav a { display: flex; align-items: center; gap: .4rem; padding: .45rem .55rem; border-radius: var(--radius-sm); color: var(--muted); font-weight: 560; white-space: nowrap; }
+.topnav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.topnav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.topbar-tools { margin-left: auto; display: flex; align-items: center; gap: .3rem; flex: none; }
+.topbar-tools .icon-only { padding: .45rem; }
+.topbar-tools .lang-switch { display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.topsearch { width: 10rem; }
+@media (max-width: 1400px) { .topbar-tools .lang-switch span { display: none; } }
+@media (max-width: 1180px) { .topbar-tools .topsearch { display: none; } }
+main { padding: 1.6rem clamp(16px, 3vw, 36px) 3rem; max-width: 1312px; width: 100%; min-width: 0; margin: 0 auto; }
 .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .pagehead p { margin-top: .25rem; }
 .crumb { margin-bottom: .75rem; }
@@ -262,17 +268,16 @@ table.matrix .cell:hover { outline: 2px solid var(--text); outline-offset: 0; }
 }
 @media (max-width: 760px) {
   /* a short page must not hand its spare height to the top bar: the rows keep their size and the page ends where it ends */
-  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .hero, .hosthead { min-width: 0; }
   .gauge svg { max-width: 180px; }
   .legend { justify-content: flex-start; }
-  .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: .6rem .9rem; gap: .5rem; }
-  /* four equal tabs that always fit: icon over label, like a tab bar */
-  .sidebar nav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; order: 3; width: 100%; gap: .25rem; }
-  .sidebar nav a { flex-direction: column; gap: .15rem; padding: .45rem .2rem; font-size: .76rem; text-align: center; }
-  .nav-section { display: none; }
-  .sidebar-foot { margin: 0 0 0 auto; display: flex; }
-  .sidebar-foot button span { display: none; }
+  /* two rows: the brand and the settings, then the pages as a tab bar (icon over label, equal widths) */
+  .topbar { position: static; }
+  html { scroll-padding-top: 0; }
+  .topbar-in { flex-wrap: wrap; gap: .5rem; padding: .5rem 16px; }
+  .topnav { order: 3; width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .2rem; }
+  .topnav a { flex-direction: column; gap: .15rem; padding: .4rem .15rem; font-size: .74rem; justify-content: center; }
+  .topbar-tools .profile-select select { max-width: 7.5rem; }
   .login { grid-template-columns: 1fr; }
   .login-art { display: none; }
   .control-row { grid-template-columns: 16px 3rem 1fr 6.2rem; }
@@ -291,9 +296,8 @@ table.matrix .cell:hover { outline: 2px solid var(--text); outline-offset: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
-.profile-select { display: grid; gap: 4px; padding: 0 12px 12px; }
-.profile-select label { font-size: 12px; color: var(--muted); }
-.profile-select select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: .85rem; text-overflow: ellipsis; }
+.profile-select { display: flex; }
+.profile-select select { max-width: 11rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: .85rem; text-overflow: ellipsis; }
 
 .scannow { display: grid; gap: .35rem; }
 .scannow-main { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
@@ -411,7 +415,7 @@ html[lang="ko"] .evidence, html[lang="ko"] code, html[lang="ko"] .mono { word-br
 .standard .pill { justify-self: start; }
 /* The remediation page: the queue on the left, the chosen control on the right */
 .workbench { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.queue { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); display: flex; flex-direction: column; }
+.queue { position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); display: flex; flex-direction: column; }
 .queue-filters { display: grid; gap: .5rem; padding: .8rem; border-bottom: 1px solid var(--border); }
 .workbench-main .fixhosts-head { margin: 0; padding: .9rem 1.1rem .5rem; font-size: .95rem; }
 .queue-filters .search { width: 100%; }
