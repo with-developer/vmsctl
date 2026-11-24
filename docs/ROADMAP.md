@@ -65,6 +65,9 @@ fix hints in the results (v0.21), a firewall and automatic updates in `essential
 ([ADR 0017](adr/0017-rename-to-vmsctl.md), [migration guide](migrating-from-hostlint.md)).
 Korean guidance (what a check looks at, why, how to fix it) for every built-in check, in `explain --lang ko`, the reports, the
 CSV and the dashboard (v0.33), and Korean webhook text.
+The dashboard redesigned around what to do next (v0.43–v0.48): what to fix first with what each fix adds to the pass rate, recent
+changes, what changed on a host since its previous scan, controls grouped by the standard's areas, a card for each standard, marks
+on the trend for the days controls got worse or were fixed, a remediation page, and a top bar.
 
 **Next:**
 - Roles beyond viewer and operator, and OIDC inside vmsctl: not now ([ADR 0015](adr/0015-dashboard-sign-in.md); an
