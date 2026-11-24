@@ -1172,3 +1172,39 @@ func TestControlFailingSince(t *testing.T) {
 		t.Errorf("failing again: since %s, want %s (the last scan)", h.FailingSince, want)
 	}
 }
+
+// The fix text the dashboard shows for a built-in control is the server's own (ADR 0018); a control it does not know has none.
+func TestControlInfo(t *testing.T) {
+	f := newAPIFixture(t)
+	content, err := engine.Load(rules.FS, profiles.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(Config{Store: f.store, Rate: 100000, Now: func() time.Time { return f.clock }, Content: content})
+	get := func(path string) (int, []byte) {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+f.api)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code, rec.Body.Bytes()
+	}
+	code, body := get("/api/v1/controls/kisa-2026/U-01/info")
+	var info ControlInfo
+	if err := json.Unmarshal(body, &info); code != http.StatusOK || err != nil || len(info.Checks) == 0 {
+		t.Fatalf("%d %s", code, body)
+	}
+	want := strings.TrimSpace(content.Checks[info.Checks[0].ID].Remediation)
+	if want == "" || info.Checks[0].Remediation != want {
+		t.Errorf("remediation %q, want the rule's %q", info.Checks[0].Remediation, want)
+	}
+	if code, _ := get("/api/v1/controls/x-acme/A-01/info"); code != http.StatusNotFound {
+		t.Errorf("a pack's control: %d", code)
+	}
+	// a read endpoint: not without a token
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/controls/kisa-2026/U-01/info", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("without a token: %d", rec.Code)
+	}
+}

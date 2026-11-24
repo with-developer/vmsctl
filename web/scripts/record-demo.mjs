@@ -65,6 +65,8 @@ for (const pair of pairs) {
 for (const id of latest) await record(`/api/v1/scans/${id}`);
 for (const c of controls.values()) {
   await record(`/api/v1/controls/${encodeURIComponent(c.profile)}/${encodeURIComponent(c.id)}?staleDays=${STALE}`);
+  // the fix text of the evidence view comes from the server's rules (ADR 0018)
+  await record(`/api/v1/controls/${encodeURIComponent(c.profile)}/${encodeURIComponent(c.id)}/info`, { optional: true });
 }
 
 // When it was recorded: the demo moves every time forward by the age of the file, so "41 minutes ago" stays that.

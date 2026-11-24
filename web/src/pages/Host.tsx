@@ -7,7 +7,7 @@ import { lastListAddress } from "../lib/listAddress";
 import { Avatar, Await, Empty, Gauge, Inline, ScorePill, Severity, SignedBadge, StatusBadge, StatusBar } from "../components/ui";
 import { TrendChart } from "../components/charts";
 import { IconChevron, IconDownload, IconSearch } from "../components/icons";
-import { STATUSES, type ControlChange, type ControlRow, type Diff, type HostDetail, type ScanDoc, type ScanRow, type Status } from "../lib/types";
+import { STATUSES, type ControlChange, type ControlInfo, type ControlRow, type Diff, type DocCheck, type HostDetail, type ScanDoc, type ScanRow, type Status } from "../lib/types";
 import { STALE_DAYS } from "./Overview";
 
 export function HostPage({ id }: { id: number }) {
@@ -184,6 +184,13 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
   // The stored result holds the evidence. It is fetched the first time a control is opened and kept.
   const [wanted, setWanted] = useState(false);
   const doc = useAsync(() => (wanted ? api.scan(scanId) : Promise.resolve(null as ScanDoc | null)), [wanted, scanId]);
+  // The open control's rules on the server: its fix text (ADR 0018). A control the server does not know answers 404: null.
+  const openControl = controls.find((c) => `${c.profile}/${c.id}` === open);
+  const info = useAsync(
+    () => (openControl ? api.controlInfo(openControl.profile, openControl.id).catch(() => null) : Promise.resolve(null)),
+    [openControl?.profile, openControl?.id],
+    false,
+  );
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -291,7 +298,7 @@ function Controls({ controls, scanId, worse, focus, onFocused }: { controls: Con
                         <div className="control-body">
                           {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
                           {doc.error && <p className="error-text">{doc.error.message}</p>}
-                          {doc.data && <ControlDetail control={c} doc={doc.data} />}
+                          {doc.data && <ControlDetail control={c} doc={doc.data} info={info.loading ? undefined : info.data} />}
                         </div>
                       )}
                     </li>
@@ -333,8 +340,12 @@ function groupByArea(rows: ControlRow[], all: ControlRow[]): AreaGroup[] {
   return [...groups.values()].filter((g) => g.rows.length > 0);
 }
 
-/** The checks of a control and what they observed. All of it is host text: shown as text only. */
-export function ControlDetail({ control, doc }: { control: Pick<ControlRow, "profile" | "id">; doc: ScanDoc }) {
+/**
+ * The checks of a control and what they observed. All of it is host text: shown as text only. The fix of a built-in check is the
+ * server's own (info, from its rules; ADR 0018): a host cannot change it. Only a check the server does not know (a policy pack's)
+ * shows the fix the scan reported, labelled so. info is undefined while it loads.
+ */
+export function ControlDetail({ control, doc, info }: { control: Pick<ControlRow, "profile" | "id">; doc: ScanDoc; info: ControlInfo | null | undefined }) {
   const { t, lang } = useI18n();
   const dc = doc.controls.find((x) => x.profile === control.profile && x.id === control.id);
   const checks = (dc?.checks ?? []).map((ref) => doc.checks.find((c) => c.ref === ref)).filter((c) => c !== undefined);
@@ -349,11 +360,7 @@ export function ControlDetail({ control, doc }: { control: Pick<ControlRow, "pro
             <StatusBadge status={ch.status} /> <span className="mono">{ch.ref}</span> <span className="muted">{localized(lang, ch.title, ch.titleKo)}</span>
           </div>
           {ch.reason && <p className="muted small">{localized(lang, ch.reason, ch.reasonKo)}</p>}
-          {ch.remediation && (
-            <p className="prose remedy small">
-              <strong>{t("host.howToFix")}</strong> <Inline text={localized(lang, ch.remediation, ch.remediationKo)} />
-            </p>
-          )}
+          <Fix check={ch} info={info} />
           {(ch.evidence?.length ?? 0) > 0 ? (
             <pre className="evidence">
               {ch.evidence?.map((e) => `${e.text.startsWith(e.key) ? "" : `${e.key} `}${e.text}${e.source ? `   ${e.source}` : ""}`).join("\n")}
@@ -365,6 +372,28 @@ export function ControlDetail({ control, doc }: { control: Pick<ControlRow, "pro
         </div>
       ))}
     </>
+  );
+}
+
+/** How to fix a failed check: the rule's text from the server, or, for a check it does not know, what the scan said. */
+function Fix({ check: ch, info }: { check: DocCheck; info: ControlInfo | null | undefined }) {
+  const { t, lang } = useI18n();
+  if (ch.status !== "FAIL" || info === undefined) return null;
+  const id = ch.id ?? ch.ref.split("#")[0];
+  const rule = info?.checks.find((c) => c.id === id);
+  if (rule) {
+    const text = localized(lang, rule.remediation, rule.remediationKo);
+    return text ? (
+      <p className="prose remedy small">
+        <strong>{t("host.howToFix")}</strong> <Inline text={text} />
+      </p>
+    ) : null;
+  }
+  if (!ch.remediation) return null;
+  return (
+    <p className="prose remedy small">
+      <strong>{t("host.howToFix")}</strong> <span className="muted">({t("host.fixFromScan")})</span> {localized(lang, ch.remediation, ch.remediationKo)}
+    </p>
   );
 }
 

@@ -73,6 +73,7 @@ func (s *Server) routesRead(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/matrix", s.readAPI(s.handleMatrix))
 	mux.HandleFunc("GET /api/v1/controls", s.readAPI(s.handleControls))
 	mux.HandleFunc("GET /api/v1/controls/{profile}/{id}", s.readAPI(s.handleControl))
+	mux.HandleFunc("GET /api/v1/controls/{profile}/{id}/info", s.readAPI(s.handleControlInfo))
 	mux.HandleFunc("GET /api/v1/hosts/{id}", s.readAPI(s.handleHost))
 	mux.HandleFunc("GET /api/v1/hosts/{id}/agent", s.readAPI(s.handleHostAgent))
 	mux.HandleFunc("GET /api/v1/scans/{id}", s.readAPI(s.handleScan))
@@ -623,6 +624,17 @@ func (s *Server) controlInfo(profile, id string) *ControlInfo {
 		return info
 	}
 	return nil
+}
+
+// handleControlInfo is what a control of a built-in profile checks and how to fix it, from the server's own rules (ADR 0018): the
+// fix text the dashboard shows, which a host cannot change. 404 for a control the server does not know (a policy pack's).
+func (s *Server) handleControlInfo(w http.ResponseWriter, r *http.Request) {
+	info := s.controlInfo(r.PathValue("profile"), r.PathValue("id"))
+	if info == nil {
+		writeError(w, http.StatusNotFound, "the server has no rules for this control")
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {

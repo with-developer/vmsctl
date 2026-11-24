@@ -90,6 +90,7 @@ export const api = {
   controls: () => request<{ controls: ControlSummary[] }>(withProfile("/api/v1/controls")),
   control: (profile: string, id: string, staleDays: number) =>
     request<{ control: ControlDetail; info: ControlInfo | null }>(`/api/v1/controls/${encodeURIComponent(profile)}/${encodeURIComponent(id)}?staleDays=${staleDays}`),
+  controlInfo: (profile: string, id: string) => request<ControlInfo>(`/api/v1/controls/${encodeURIComponent(profile)}/${encodeURIComponent(id)}/info`),
   matrix: (staleDays: number) => request<Matrix>(withProfile(`/api/v1/matrix?staleDays=${staleDays}`)),
   host: (id: number, staleDays: number) => request<HostDetail>(withProfile(`/api/v1/hosts/${id}?staleDays=${staleDays}`)),
   hostAgent: (id: number) => request<AgentInfo>(`/api/v1/hosts/${id}/agent`),
