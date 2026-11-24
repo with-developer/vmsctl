@@ -202,7 +202,8 @@ function FixHost({ host: h, profile, id, now, info }: { host: ControlHost; profi
         <div className="control-body">
           {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
           {doc.error && <p className="error-text">{doc.error.message}</p>}
-          {doc.data && <ControlDetail control={{ profile, id }} doc={doc.data} info={info} />}
+          {/* the fix is said once, above the hosts: the evidence alone here */}
+          {doc.data && <ControlDetail control={{ profile, id }} doc={doc.data} info={info} showFix={false} />}
         </div>
       )}
     </li>

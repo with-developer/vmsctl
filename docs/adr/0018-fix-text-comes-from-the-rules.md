@@ -35,7 +35,11 @@ A review against the proposal found it unsafe as written:
    and the value, with short commands in backticks where one is exact (`chmod go-w`), as today.
 2. **The dashboard shows the fix text of a built-in check from the server's own rules, never from the result.** The
    evidence view asks the server for the control's rules (`GET /api/v1/controls/PROFILE/ID/info`) and shows their fix
-   text. A check the server does not know (a policy pack's) shows the text of the scan, labelled as what the scan reported.
+   text. When the server knows the control, only its rules speak: a check the rule does not list (one a host slipped in)
+   shows no fix at all. Only a control the server has no rules for (a policy pack's: 404) shows the text of the scan,
+   labelled as what the scan reported; any other failure to get the rules shows no fix. The CSV of a scan that the
+   dashboard offers is made the same way. The stored result itself (`GET /api/v1/scans/ID`) stays as the host sent it:
+   it is the host's document, the evidence.
 3. If structured fixes come later, they must be: declarative (a target state such as a drop-in file, a key and a value,
    a file mode) that vmsctl turns into text, so that parameters are respected and rules hold no shell; shown only from
    the renderer's own rules, never carried in or read from a result; not allowed in policy packs; labelled with the
@@ -45,8 +49,8 @@ A review against the proposal found it unsafe as written:
 ## Consequences
 
 - A host cannot put words in the project's mouth on the dashboard: for built-in checks the fix text is the server's.
-- The evidence view makes one more request when a control is opened (the control's rules, small and cached by the
-  browser for the session).
+- The evidence view makes one more request the first time a control is opened (the control's rules, small; the page keeps
+  them while it is open, since they do not change while the server runs).
 - The reports (`vmsctl report`, Markdown and HTML) still render the fix text of the results they are given; they are made
   by the person who holds the results. Taking the built-in text there too is a follow-up.
 - Per-distribution commands are not built. Configuration management (ComplianceAsCode, ansible-lockdown) remains the

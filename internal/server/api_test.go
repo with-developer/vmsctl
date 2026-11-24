@@ -1208,3 +1208,71 @@ func TestControlInfo(t *testing.T) {
 		t.Errorf("without a token: %d", rec.Code)
 	}
 }
+
+// A host cannot put its own fix text in what the server shows (ADR 0018): the CSV of a scan takes the fix of a built-in check from
+// the server's rules, and a check that a built-in control does not list (slipped in by the host) gets none.
+func TestScanCSVFixFromRules(t *testing.T) {
+	f := newAPIFixture(t)
+	content, err := engine.Load(rules.FS, profiles.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(Config{Store: f.store, Rate: 100000, Now: func() time.Time { return f.clock }, Content: content})
+	var doc map[string]any
+	if err := json.Unmarshal(fixture(t, "web-01.json"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["scan"].(map[string]any)["id"] = "web-01-planted"
+	for _, c := range doc["checks"].([]any) {
+		if c.(map[string]any)["status"] == "FAIL" {
+			c.(map[string]any)["remediation"] = "PLANTED run this"
+		}
+	}
+	// a check of the host's own under the built-in control U-01, failing with its own "fix"
+	doc["checks"] = append(doc["checks"].([]any), map[string]any{"ref": "x-evil.fix", "id": "x-evil.fix", "title": "x", "severity": "high", "status": "FAIL", "statusSource": "observed", "remediation": "PLANTED too"})
+	for _, c := range doc["controls"].([]any) {
+		if c.(map[string]any)["id"] == "U-01" {
+			c.(map[string]any)["checks"] = append([]any{"x-evil.fix"}, c.(map[string]any)["checks"].([]any)...)
+			c.(map[string]any)["status"] = "FAIL"
+		}
+	}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.clock = f.clock.Add(time.Hour)
+	if code, out := post(t, f.srv, token(t, f.store, ScopeIngest, ""), raw); code != http.StatusCreated {
+		t.Fatalf("not stored: %d %v", code, out)
+	}
+	var scans struct {
+		Scans []ScanRow `json:"scans"`
+	}
+	var hosts struct {
+		Hosts []struct{ ID int64 } `json:"hosts"`
+	}
+	f.json(t, "/api/v1/hosts?q=web-01", &hosts)
+	f.json(t, "/api/v1/hosts/"+itoa(hosts.Hosts[0].ID), &scans)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/scans/"+itoa(scans.Scans[0].ID)+"?format=csv", nil)
+	req.Header.Set("Authorization", "Bearer "+f.api)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "PLANTED") {
+		t.Errorf("the host's fix text is in the CSV:\n%s", body)
+	}
+	if want := strings.Fields(strings.TrimSpace(content.Checks["ssh.permit-root-login"].Remediation))[0]; !strings.Contains(body, want) {
+		t.Errorf("the rule's fix is not in the CSV")
+	}
+	// a server without rules does not answer "unknown control", which would send the dashboard to the hosts' text
+	bare := New(Config{Store: f.store, Rate: 100000, Now: func() time.Time { return f.clock }})
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/controls/kisa-2026/U-01/info", nil)
+	req.Header.Set("Authorization", "Bearer "+f.api)
+	rec = httptest.NewRecorder()
+	bare.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("without rules: %d", rec.Code)
+	}
+}
