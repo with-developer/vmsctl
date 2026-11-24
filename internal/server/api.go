@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -73,6 +74,7 @@ func (s *Server) routesRead(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/matrix", s.readAPI(s.handleMatrix))
 	mux.HandleFunc("GET /api/v1/controls", s.readAPI(s.handleControls))
 	mux.HandleFunc("GET /api/v1/controls/{profile}/{id}", s.readAPI(s.handleControl))
+	mux.HandleFunc("GET /api/v1/controls/{profile}/{id}/info", s.readAPI(s.handleControlInfo))
 	mux.HandleFunc("GET /api/v1/hosts/{id}", s.readAPI(s.handleHost))
 	mux.HandleFunc("GET /api/v1/hosts/{id}/agent", s.readAPI(s.handleHostAgent))
 	mux.HandleFunc("GET /api/v1/scans/{id}", s.readAPI(s.handleScan))
@@ -337,6 +339,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 			res.Controls[i].TitleKo = s.titleKo(res.Controls[i].Profile, res.Controls[i].ID)
 		}
 	}
+	s.trustFixes(res)
 	var buf bytes.Buffer
 	if err := output.Write(&buf, res, "csv", output.Options{}); err != nil {
 		s.fail(w, err)
@@ -623,6 +626,52 @@ func (s *Server) controlInfo(profile, id string) *ControlInfo {
 		return info
 	}
 	return nil
+}
+
+// trustFixes replaces, in a stored result about to be shown, the fix text of the checks of built-in controls with the server's own
+// (ADR 0018). A check that the rule's control does not list gets none: a host cannot slip its own text in under a built-in control.
+// The controls of a policy pack's profile keep the text of the scan (the server has no rules for them).
+func (s *Server) trustFixes(res *engine.Result) {
+	if s.cfg.Content == nil {
+		return
+	}
+	byRef := map[string]*engine.CheckResult{}
+	for i := range res.Checks {
+		byRef[res.Checks[i].Ref] = &res.Checks[i]
+	}
+	for _, c := range res.Controls {
+		ctl := s.builtinControl(c.Profile, c.ID)
+		if ctl == nil {
+			continue
+		}
+		for _, ref := range c.Checks {
+			ck := byRef[ref]
+			if ck == nil {
+				continue
+			}
+			rule := s.cfg.Content.Checks[ck.ID]
+			if rule == nil || !slices.Contains(ctl.Checks, ck.ID) {
+				ck.Remediation, ck.RemediationKo = "", ""
+				continue
+			}
+			ck.Remediation, ck.RemediationKo = strings.TrimSpace(rule.Remediation), strings.TrimSpace(rule.RemediationKo)
+		}
+	}
+}
+
+// handleControlInfo is what a control of a built-in profile checks and how to fix it, from the server's own rules (ADR 0018): the
+// fix text the dashboard shows, which a host cannot change. 404 for a control the server does not know (a policy pack's).
+func (s *Server) handleControlInfo(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Content == nil { // not "unknown control": the dashboard would show the hosts' text for every control
+		writeError(w, http.StatusServiceUnavailable, "the server has no rules")
+		return
+	}
+	info := s.controlInfo(r.PathValue("profile"), r.PathValue("id"))
+	if info == nil {
+		writeError(w, http.StatusNotFound, "the server has no rules for this control")
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {

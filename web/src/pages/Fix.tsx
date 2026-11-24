@@ -7,7 +7,7 @@ import { Await, Empty, Inline, PageHeader, Severity, Skeleton, StatusBadge } fro
 import { IconSearch } from "../components/icons";
 import { ControlDetail } from "./Host";
 import { STALE_DAYS } from "./Overview";
-import type { ControlHost, ControlSummary, ScanDoc } from "../lib/types";
+import type { ControlHost, ControlInfo, ControlSummary, ScanDoc } from "../lib/types";
 
 /** The weight of a severity in the order to fix in, as the server's (internal/server, the overview's "fix first"). */
 const WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
@@ -156,7 +156,7 @@ function FixDetail({ profile, id }: { profile: string; id: string }) {
                 ) : (
                   <ul className="fixhosts">
                     {failing.map((h) => (
-                      <FixHost key={h.hostId} host={h} profile={c.profile} id={c.id} now={now} />
+                      <FixHost key={h.hostId} host={h} profile={c.profile} id={c.id} now={now} info={info ?? null} />
                     ))}
                   </ul>
                 )}
@@ -170,7 +170,7 @@ function FixDetail({ profile, id }: { profile: string; id: string }) {
 }
 
 /** A host that fails the control: since when, and, on request, the evidence of its latest scan. */
-function FixHost({ host: h, profile, id, now }: { host: ControlHost; profile: string; id: string; now: number }) {
+function FixHost({ host: h, profile, id, now, info }: { host: ControlHost; profile: string; id: string; now: number; info: ControlInfo | null }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   // fetched the first time it is opened, and kept when it is closed
@@ -202,7 +202,8 @@ function FixHost({ host: h, profile, id, now }: { host: ControlHost; profile: st
         <div className="control-body">
           {doc.loading && !doc.data && <p className="muted">{t("loading")}</p>}
           {doc.error && <p className="error-text">{doc.error.message}</p>}
-          {doc.data && <ControlDetail control={{ profile, id }} doc={doc.data} />}
+          {/* the fix is said once, above the hosts: the evidence alone here */}
+          {doc.data && <ControlDetail control={{ profile, id }} doc={doc.data} info={info} showFix={false} />}
         </div>
       )}
     </li>

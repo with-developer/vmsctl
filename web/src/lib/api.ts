@@ -76,6 +76,25 @@ function withProfile(path: string): string {
 
 const json = { "Content-Type": "application/json" };
 
+// The rules of a control do not change while the page is open: asked once per control (ADR 0018).
+const infos = new Map<string, Promise<ControlInfo | null>>();
+
+/** What a control of a built-in profile checks and how to fix it, from the server's rules; null when the server has no rules for it
+ * (404: a policy pack's control). Any other failure is an error, never null: null lets the scan's own fix text be shown. */
+function controlInfo(profile: string, id: string): Promise<ControlInfo | null> {
+  const key = `${profile}/${id}`;
+  let p = infos.get(key);
+  if (!p) {
+    p = request<ControlInfo>(`/api/v1/controls/${encodeURIComponent(profile)}/${encodeURIComponent(id)}/info`).catch((e: unknown) => {
+      if ((e as { status?: number })?.status === 404) return null;
+      infos.delete(key); // a failure is asked again next time
+      throw e;
+    });
+    infos.set(key, p);
+  }
+  return p;
+}
+
 export const api = {
   session: () => request<{ authenticated: boolean; canScan?: boolean }>("/api/v1/session"),
   login: (token: string) => request<{ ok: boolean; name: string }>("/api/v1/login", { method: "POST", headers: json, body: JSON.stringify({ token }) }),
@@ -90,6 +109,7 @@ export const api = {
   controls: () => request<{ controls: ControlSummary[] }>(withProfile("/api/v1/controls")),
   control: (profile: string, id: string, staleDays: number) =>
     request<{ control: ControlDetail; info: ControlInfo | null }>(`/api/v1/controls/${encodeURIComponent(profile)}/${encodeURIComponent(id)}?staleDays=${staleDays}`),
+  controlInfo,
   matrix: (staleDays: number) => request<Matrix>(withProfile(`/api/v1/matrix?staleDays=${staleDays}`)),
   host: (id: number, staleDays: number) => request<HostDetail>(withProfile(`/api/v1/hosts/${id}?staleDays=${staleDays}`)),
   hostAgent: (id: number) => request<AgentInfo>(`/api/v1/hosts/${id}/agent`),
