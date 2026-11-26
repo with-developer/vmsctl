@@ -51,7 +51,8 @@ A review against the proposal found it unsafe as written:
 - A host cannot put words in the project's mouth on the dashboard: for built-in checks the fix text is the server's.
 - The evidence view makes one more request the first time a control is opened (the control's rules, small; the page keeps
   them while it is open, since they do not change while the server runs).
-- The reports (`vmsctl report`, Markdown and HTML) still render the fix text of the results they are given; they are made
-  by the person who holds the results. Taking the built-in text there too is a follow-up.
+- `vmsctl report` does the same with the rules built into the binary (#331): a result file may come from any host. A policy
+  pack's controls keep the file's text there, since the server-side reason (anyone with a host's token) does not apply to
+  the person who holds the files and ran the pack. One function does it for both (`output.TrustFixes`).
 - Per-distribution commands are not built. Configuration management (ComplianceAsCode, ansible-lockdown) remains the
   answer for applying a baseline in bulk.

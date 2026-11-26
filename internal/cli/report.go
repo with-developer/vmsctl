@@ -12,6 +12,8 @@ import (
 	"github.com/with-developer/vmsctl/internal/engine"
 	"github.com/with-developer/vmsctl/internal/output"
 	"github.com/with-developer/vmsctl/internal/version"
+	"github.com/with-developer/vmsctl/profiles"
+	"github.com/with-developer/vmsctl/rules"
 )
 
 func newReportCommand() *cobra.Command {
@@ -58,11 +60,17 @@ func runReport(cmd *cobra.Command, files []string, out, title string) error {
 		}
 	}
 	files = unique
+	builtin, err := engine.Load(rules.FS, profiles.FS)
+	if err != nil {
+		return err
+	}
 	for _, name := range files {
 		res, err := readResultFile(name)
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
+		// A result file may come from any host: the fix of a built-in check is the rules' own (ADR 0018).
+		output.TrustFixes(res, builtin)
 		inputs = append(inputs, output.ReportInput{Name: displayName(name, files), Result: res})
 	}
 	opts := output.ReportOptions{Title: title, Tool: version.Get().Version, Now: time.Now()}
