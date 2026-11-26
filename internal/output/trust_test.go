@@ -13,29 +13,40 @@ func TestTrustFixes(t *testing.T) {
 			"tests:\n  - {name: p, facts: {svc: {present: true}}, want: PASS}\n  - {name: f, facts: {svc: {present: false}}, want: FAIL}\n  - {name: a, input: absent, want: ERROR}\n"
 	}
 	content, err := engine.Load(
-		fstest.MapFS{"x/a.yaml": {Data: []byte(check("x.a", "the rule's fix"))}, "x/b.yaml": {Data: []byte(check("x.b", "b's fix"))}},
+		fstest.MapFS{"x/a.yaml": {Data: []byte(check("x.a", "a's fix"))}, "x/b.yaml": {Data: []byte(check("x.b", "b's fix"))}},
 		fstest.MapFS{"p.yaml": {Data: []byte("id: p\nrevision: 1\ntitle: P\ncontrols:\n  - {id: C, title: C, severity: low, checks: [x.a]}\n")}},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	const planted = "PLANTED"
 	res := &engine.Result{
 		Controls: []engine.ControlResult{
-			{Profile: "p", ID: "C", Checks: []string{"x.a", "x.b", "x-evil.c"}},
-			{Profile: "x-pack", ID: "P-1", Checks: []string{"x-pack.d"}},
+			{Profile: "p", ID: "C", Checks: []string{"x.a", "x-evil.c"}},
+			{Profile: "p", ID: "U-99", Checks: []string{"x-evil.e"}}, // a control the built-in profile does not have
+			{Profile: "x-pack", ID: "P-1", Checks: []string{"x-pack.d", "x.b"}},
 		},
 		Checks: []engine.CheckResult{
-			{Ref: "x.a", ID: "x.a", Remediation: "PLANTED", RemediationKo: "PLANTED"},
-			{Ref: "x.b", ID: "x.b", Remediation: "PLANTED"},           // a built-in check the control does not list
-			{Ref: "x-evil.c", ID: "x-evil.c", Remediation: "PLANTED"}, // a check the server has no rule for
-			{Ref: "x-pack.d", ID: "x-pack.d", Remediation: "the pack's fix"},
+			{Ref: "x.a", ID: "x.a", Status: engine.StatusFail, Remediation: planted, RemediationKo: planted},
+			{Ref: "x.b", ID: "x.b", Status: engine.StatusFail, Remediation: planted},                    // built-in, under a pack control
+			{Ref: "x-evil.c", ID: "x-evil.c", Status: engine.StatusFail, Remediation: planted},          // slipped under a built-in control
+			{Ref: "x-evil.e", ID: "x-evil.e", Status: engine.StatusFail, Remediation: planted},          // under a made-up control of a built-in profile
+			{Ref: "x-pack.d", ID: "x-pack.d", Status: engine.StatusFail, Remediation: "the pack's fix"}, // a pack's own check
+			{Ref: "x-loose.f", ID: "x-loose.f", Status: engine.StatusFail, Remediation: planted},        // under no control
+			{Ref: "x.b#1", ID: "x.b", Status: engine.StatusError, Remediation: planted},                 // built-in, not failed
+			{Ref: "x.a#2", ID: "x.a", Status: engine.StatusWaived, OriginalStatus: engine.StatusFail},   // waived: still says how
+			{Ref: "noprefix.g", ID: "noprefix.g", Status: engine.StatusFail, Remediation: planted},      // unknown, not a pack's ID
 		},
 	}
+	res.Controls[2].Checks = append(res.Controls[2].Checks, "noprefix.g")
 	TrustFixes(res, content)
-	want := map[string][2]string{"x.a": {"the rule's fix", "한국어 the rule's fix"}, "x.b": {"", ""}, "x-evil.c": {"", ""}, "x-pack.d": {"the pack's fix", ""}}
+	want := map[string][2]string{
+		"x.a": {"a's fix", "한국어 a's fix"}, "x.b": {"b's fix", "한국어 b's fix"}, "x-evil.c": {"", ""}, "x-evil.e": {"", ""},
+		"x-pack.d": {"the pack's fix", ""}, "x-loose.f": {"", ""}, "x.b#1": {"", ""}, "x.a#2": {"a's fix", "한국어 a's fix"}, "noprefix.g": {"", ""},
+	}
 	for _, c := range res.Checks {
-		if got := [2]string{c.Remediation, c.RemediationKo}; got != want[c.ID] {
-			t.Errorf("%s: %q, want %q", c.ID, got, want[c.ID])
+		if got := [2]string{c.Remediation, c.RemediationKo}; got != want[c.Ref] {
+			t.Errorf("%s: %q, want %q", c.Ref, got, want[c.Ref])
 		}
 	}
 	TrustFixes(res, nil) // no rules: nothing changes, nothing panics

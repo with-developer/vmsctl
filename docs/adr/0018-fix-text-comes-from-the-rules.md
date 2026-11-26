@@ -1,6 +1,6 @@
 # 0018. Fix text comes from the rules, not from a host; no shell commands in rules
 
-- Status: Accepted
+- Status: Accepted; amended by [0019](0019-fix-text-trusted-per-check.md) (the rule applies per check, and to the report)
 - Date: 2026-11-24
 
 ## Context
@@ -51,8 +51,7 @@ A review against the proposal found it unsafe as written:
 - A host cannot put words in the project's mouth on the dashboard: for built-in checks the fix text is the server's.
 - The evidence view makes one more request the first time a control is opened (the control's rules, small; the page keeps
   them while it is open, since they do not change while the server runs).
-- `vmsctl report` does the same with the rules built into the binary (#331): a result file may come from any host. A policy
-  pack's controls keep the file's text there, since the server-side reason (anyone with a host's token) does not apply to
-  the person who holds the files and ran the pack. One function does it for both (`output.TrustFixes`).
+- The reports (`vmsctl report`, Markdown and HTML) still render the fix text of the results they are given; they are made
+  by the person who holds the results. Taking the built-in text there too is a follow-up.
 - Per-distribution commands are not built. Configuration management (ComplianceAsCode, ansible-lockdown) remains the
   answer for applying a baseline in bulk.
