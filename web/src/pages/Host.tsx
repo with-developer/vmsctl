@@ -380,7 +380,7 @@ export function ControlDetail({ control, doc, info, showFix = true }: { control:
 /**
  * How to fix a failed check (ADR 0018): undefined info (loading, or failed) shows nothing. When the server knows the control (info),
  * only its rules speak: a check the rule does not list shows nothing, whatever the scan says. Only for a control the server has no
- * rules for (null: a policy pack's) is the scan's own text shown, marked as such.
+ * rules for (null: a policy pack's) is the scan's own text shown, marked as such, and only for the pack's own checks (x-).
  */
 export function fixFor(ch: DocCheck, info: ControlInfo | null | undefined, lang: string): { text: string; fromScan: boolean } | null {
   if (ch.status !== "FAIL" || info === undefined) return null;
@@ -390,6 +390,9 @@ export function fixFor(ch: DocCheck, info: ControlInfo | null | undefined, lang:
     const text = rule ? localized(lang, rule.remediation, rule.remediationKo) : "";
     return text ? { text, fromScan: false } : null;
   }
+  // a policy pack's own check (x-): its guidance; a built-in check under a pack's control, whose text the scan carries, says nothing
+  // here rather than trust the scan for it (ADR 0019)
+  if (!(ch.id ?? ch.ref).startsWith("x-")) return null;
   const text = ch.remediation ? localized(lang, ch.remediation, ch.remediationKo) : "";
   return text ? { text, fromScan: true } : null;
 }

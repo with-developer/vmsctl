@@ -23,3 +23,4 @@ Consequences. Don't edit an accepted ADR to change a decision — add a new ADR 
 | [0016](0016-images-and-packs-in-the-fleet-server.md) | Images and policy-pack results in the fleet server (accepted) |
 | [0017](0017-rename-to-vmsctl.md) | The project is renamed from hostlint to vmsctl: what changes, what keeps the old name, what is accepted both ways (accepted) |
 | [0018](0018-fix-text-comes-from-the-rules.md) | Fix text comes from the rules, not from a host; no shell commands in rules (accepted) |
+| [0019](0019-fix-text-trusted-per-check.md) | Fix text is trusted per check, in every place that shows a result from elsewhere; amends 0018 (accepted) |

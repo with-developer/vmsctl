@@ -107,3 +107,91 @@ func TestDiffCommand(t *testing.T) {
 		}
 	}
 }
+
+// A result file may come from any host: the report shows the fix of a built-in check from the rules, never the file's own text
+// (ADR 0018), and none for a check a host slipped in under a built-in control.
+func TestReportFixFromRules(t *testing.T) {
+	ctx := context.Background()
+	raw, err := os.ReadFile(filepath.Join("..", "output", "testdata", "report", "web-01.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range doc["checks"].([]any) {
+		if c.(map[string]any)["status"] == "FAIL" {
+			c.(map[string]any)["remediation"] = "PLANTED run this"
+		}
+	}
+	doc["checks"] = append(doc["checks"].([]any), map[string]any{"ref": "x-evil.fix", "id": "x-evil.fix", "title": "x", "severity": "high", "status": "FAIL", "statusSource": "observed", "remediation": "PLANTED too"})
+	for _, c := range doc["controls"].([]any) {
+		if c.(map[string]any)["id"] == "U-01" {
+			c.(map[string]any)["checks"] = append([]any{"x-evil.fix"}, c.(map[string]any)["checks"].([]any)...)
+		}
+	}
+	planted, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := filepath.Join(t.TempDir(), "web-01.json")
+	if err := os.WriteFile(in, planted, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := run(ctx, t, "report", in)
+	if code != ExitOK {
+		t.Fatalf("code %d, %s", code, stderr)
+	}
+	if strings.Contains(stdout, "PLANTED") {
+		t.Error("the file's own fix text is in the report")
+	}
+	if !strings.Contains(stdout, "PermitRootLogin") {
+		t.Error("the rule's fix of ssh.permit-root-login is not in the report")
+	}
+}
+
+// One file cannot lend its fix text to another host's control: the report shares one entry per check across hosts, so a planted fix
+// on a built-in check that the file lists under no control must not reach web-01's U-01 (review of #332).
+func TestReportFixNotSharedFromAnotherFile(t *testing.T) {
+	ctx := context.Background()
+	raw, err := os.ReadFile(filepath.Join("..", "output", "testdata", "report", "web-01.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["host"].(map[string]any)["hostname"] = "aaa"
+	for _, c := range doc["checks"].([]any) {
+		if c.(map[string]any)["ref"] == "ssh.permit-root-login" {
+			c.(map[string]any)["remediation"] = "PLANTED run this"
+		}
+	}
+	for _, c := range doc["controls"].([]any) { // listed by no control
+		var keep []any
+		for _, ref := range c.(map[string]any)["checks"].([]any) {
+			if ref != "ssh.permit-root-login" {
+				keep = append(keep, ref)
+			}
+		}
+		c.(map[string]any)["checks"] = keep
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	aaa := filepath.Join(dir, "aaa.json")
+	if err := os.WriteFile(aaa, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := run(ctx, t, "report", aaa, filepath.Join("..", "output", "testdata", "report", "web-01.json"))
+	if code != ExitOK {
+		t.Fatalf("code %d, %s", code, stderr)
+	}
+	if strings.Contains(stdout, "PLANTED") {
+		t.Error("a file's fix text reached the report")
+	}
+}

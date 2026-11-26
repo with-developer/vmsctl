@@ -1,6 +1,6 @@
 # 0018. Fix text comes from the rules, not from a host; no shell commands in rules
 
-- Status: Accepted
+- Status: Accepted; amended by [0019](0019-fix-text-trusted-per-check.md) (the rule applies per check, and to the report)
 - Date: 2026-11-24
 
 ## Context

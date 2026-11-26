@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -339,7 +338,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 			res.Controls[i].TitleKo = s.titleKo(res.Controls[i].Profile, res.Controls[i].ID)
 		}
 	}
-	s.trustFixes(res)
+	output.TrustFixes(res, s.cfg.Content) // the fix of a built-in check is the server's (ADR 0018)
 	var buf bytes.Buffer
 	if err := output.Write(&buf, res, "csv", output.Options{}); err != nil {
 		s.fail(w, err)
@@ -626,37 +625,6 @@ func (s *Server) controlInfo(profile, id string) *ControlInfo {
 		return info
 	}
 	return nil
-}
-
-// trustFixes replaces, in a stored result about to be shown, the fix text of the checks of built-in controls with the server's own
-// (ADR 0018). A check that the rule's control does not list gets none: a host cannot slip its own text in under a built-in control.
-// The controls of a policy pack's profile keep the text of the scan (the server has no rules for them).
-func (s *Server) trustFixes(res *engine.Result) {
-	if s.cfg.Content == nil {
-		return
-	}
-	byRef := map[string]*engine.CheckResult{}
-	for i := range res.Checks {
-		byRef[res.Checks[i].Ref] = &res.Checks[i]
-	}
-	for _, c := range res.Controls {
-		ctl := s.builtinControl(c.Profile, c.ID)
-		if ctl == nil {
-			continue
-		}
-		for _, ref := range c.Checks {
-			ck := byRef[ref]
-			if ck == nil {
-				continue
-			}
-			rule := s.cfg.Content.Checks[ck.ID]
-			if rule == nil || !slices.Contains(ctl.Checks, ck.ID) {
-				ck.Remediation, ck.RemediationKo = "", ""
-				continue
-			}
-			ck.Remediation, ck.RemediationKo = strings.TrimSpace(rule.Remediation), strings.TrimSpace(rule.RemediationKo)
-		}
-	}
 }
 
 // handleControlInfo is what a control of a built-in profile checks and how to fix it, from the server's own rules (ADR 0018): the
