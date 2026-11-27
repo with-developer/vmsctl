@@ -28,3 +28,16 @@ updates:
     commit-message:
       prefix: ci
       include: scope
+
+  # The dashboard (web/): its build and test tools are pinned exactly, so they move only through these updates; the runtime is
+  # React alone. Minor and patch updates come together; a major one comes on its own, to be checked in a browser.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      web:
+        update-types: [minor, patch]
