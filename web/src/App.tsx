@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { api, setUnauthorizedHandler } from "./lib/api";
 import { useAsync, useHash } from "./lib/hooks";
 import { ProfileProvider, useProfile } from "./lib/profile";
@@ -123,7 +123,7 @@ function Shell({ hash, dark, toggleTheme, logout }: { hash: string; dark: boolea
   const current = page === "hosts" || page === "matrix" || page === "controls" || page === "images" || page === "fix" ? page : "overview";
   const searchImages = current === "images"; // on the images, the top search looks for images
 
-  const nav: [string, string, string, JSX.Element][] = [
+  const nav: [string, string, string, ReactElement][] = [
     ["overview", "#/", t("nav.overview"), <IconOverview key="o" />],
     ["fix", "#/fix", t("nav.fix"), <IconWrench key="f" />],
     ["hosts", "#/hosts", t("nav.hosts"), <IconServer key="h" />],
